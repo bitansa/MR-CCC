@@ -17,12 +17,14 @@
 ##   MR-CCC -- Bayesian 2SLS with spike-and-slab prior (this paper)
 ##
 ## Scoring convention:
-##   OLS, MVMR : score = 1 - p_F  (joint Wald F-test,
-##               H0: beta_X = beta_XZ = 0; reject if p_F <= alpha_sig)
-##   MR-BMA    : score = MIP_X    (marginal inclusion probability
-##               for ligand X; reject if MIP_X > pip_thr)
-##   MR-CCC    : score = PIP      (posterior inclusion probability
-##               P(gamma=1|data); reject if PIP >= pip_thr)
+##   OLS   : score = 1 - p_t  (Wald t-test, H0: beta_X = 0;
+##            reject if p_t <= alpha_sig)
+##   MVMR  : score = 1 - p_t  (Wald t-test, H0: beta_X = 0;
+##            no interaction term; reject if p_t <= alpha_sig)
+##   MR-BMA: score = MIP_X    (marginal inclusion probability
+##            for ligand X; reject if MIP_X > pip_thr)
+##   MR-CCC: score = PIP      (posterior inclusion probability
+##            P(gamma=1|data); reject if PIP >= pip_thr)
 ############################################################
 # rm(list = ls())
 # gc()
@@ -62,25 +64,25 @@ mr_bma_simple <- function(betaX, betaY, se.betaX, se.betaY,
   J <- nrow(betaX)
   K <- ncol(betaX)
   if (is.null(g)) g <- J  # Zellner's unit-information g = J
-
+  
   # Standardise by se.betaY (makes outcome variance = 1)
   y_std <- betaY / se.betaY
   W_std <- sweep(betaX, 1, se.betaY, "/")  # J x K
-
+  
   # Enumerate 2^K models (binary inclusion matrix)
   model_mat <- as.matrix(expand.grid(rep(list(0:1), K)))
   colnames(model_mat) <- colnames(betaX)
   n_models <- nrow(model_mat)
-
+  
   log_BF     <- numeric(n_models)
   log_prior  <- numeric(n_models)
   theta_list <- vector("list", n_models)
-
+  
   for (m in seq_len(n_models)) {
     inc <- which(model_mat[m, ] == 1)
     p_k <- length(inc)
     log_prior[m] <- p_k * log(prior_pi / (1 - prior_pi))
-
+    
     if (p_k == 0L) {
       log_BF[m]       <- 0
       theta_list[[m]] <- numeric(K)
@@ -88,30 +90,30 @@ mr_bma_simple <- function(betaX, betaY, se.betaX, se.betaY,
       W_k <- W_std[, inc, drop = FALSE]
       XtX <- crossprod(W_k)
       Xty <- crossprod(W_k, y_std)
-
+      
       XtX_inv <- tryCatch(solve(XtX), error = function(e) NULL)
       if (is.null(XtX_inv)) {
         log_BF[m]       <- -Inf
         theta_list[[m]] <- numeric(K)
         next
       }
-
+      
       SS_model_k <- as.numeric(t(Xty) %*% XtX_inv %*% Xty)
       log_BF[m]  <- -p_k / 2 * log(1 + g) +
         g / (2 * (1 + g)) * SS_model_k
-
+      
       # MAP estimate under g-prior (shrinkage factor g/(1+g))
       th_full      <- numeric(K)
       th_full[inc] <- as.numeric(g / (1 + g) * XtX_inv %*% Xty)
       theta_list[[m]] <- th_full
     }
   }
-
+  
   # Posterior model probabilities (numerically stable)
   log_unnorm <- log_BF + log_prior
   log_unnorm <- log_unnorm - max(log_unnorm)
   PP <- exp(log_unnorm) / sum(exp(log_unnorm))
-
+  
   # Marginal inclusion probabilities and model-averaged effects
   MIP  <- numeric(K)
   MACE <- numeric(K)
@@ -123,10 +125,10 @@ mr_bma_simple <- function(betaX, betaY, se.betaX, se.betaY,
                             function(m) theta_list[[m]][k],
                             numeric(1L)))
   }
-
+  
   names(MIP)  <- colnames(betaX)
   names(MACE) <- colnames(betaX)
-
+  
   list(MIP = MIP, MACE = MACE, PP = PP,
        model = model_mat, BF = exp(log_BF))
 }
@@ -183,18 +185,18 @@ generate_data <- function(n             = 300,
                           pi_val        = 0.5,
                           seed          = NULL) {
   if (!is.null(seed)) set.seed(seed)
-
+  
   G <- matrix(rnorm(n * pG), n, pG)  # sender cis-eQTL genotypes
   H <- matrix(rnorm(n * pH), n, pH)  # receiver cis-eQTL genotypes
   V <- matrix(rnorm(n * pV), n, pV)  # shared observed covariates
   U <- rnorm(n)                       # shared unmeasured confounder
-
+  
   pi_X    <- rep(pi_val, pG)  # true first-stage eQTL effects for sender
   pi_Z    <- rep(pi_val, pH)  # true first-stage eQTL effects for receiver
   alpha_X <- rep(0.3, pV)     # covariate effects on ligand
   alpha_Z <- rep(0.3, pV)     # covariate effects on receptor
   alpha_Y <- rep(0.3, pV)     # covariate effects on pathway
-
+  
   X <- as.numeric(G %*% pi_X + V %*% alpha_X + conf_strength * U + rnorm(n))
   Z <- as.numeric(H %*% pi_Z + V %*% alpha_Z + conf_strength * U + rnorm(n))
   Y <- as.numeric(beta_X  * X +
@@ -203,7 +205,7 @@ generate_data <- function(n             = 300,
                     V %*% alpha_Y +
                     conf_strength * U +
                     rnorm(n))
-
+  
   list(
     X = matrix(X, ncol = 1),
     Z = matrix(Z, ncol = 1),
@@ -241,12 +243,12 @@ fmt_mean_sd <- function(x, digits = 3) {
 ## RUN ALL 4 METHODS ON ONE DATASET
 ############################################################
 run_methods <- function(dat, pip_thr = 0.5, alpha_sig = 0.05) {
-
+  
   X <- dat$X;  Z <- dat$Z;  Y <- dat$Y
   G <- dat$G;  H <- dat$H;  V <- dat$V
   n  <- nrow(X)
   pV <- ncol(V)
-
+  
   # ----------------------------------------------------------
   # CENTERING: subtract sample means from x, z, y.
   # Enforces the paper's centering assumption exactly in each
@@ -256,17 +258,17 @@ run_methods <- function(dat, pip_thr = 0.5, alpha_sig = 0.05) {
   x <- as.numeric(X) - mean(X)
   z <- as.numeric(Z) - mean(Z)
   y <- as.numeric(Y) - mean(Y)
-
+  
   V_names <- paste0("V", seq_len(pV))
   df <- data.frame(
     Y = y, X = x, Z = z,
     setNames(as.data.frame(V), V_names)
   )
-
+  
   all_IVs  <- cbind(G, H)         # combined instrument matrix [G | H]
   n_all_IV <- ncol(all_IVs)       # pG + pH
   IV_names <- paste0("IV", seq_len(n_all_IV))
-
+  
   ##########################################################
   ## (1) OLS with interaction
   ##
@@ -284,51 +286,49 @@ run_methods <- function(dat, pip_thr = 0.5, alpha_sig = 0.05) {
   ols_fit     <- lm(Y ~ X * Z + ., data = df)
   OLS_beta_X  <- safe_coef(ols_fit, "X")
   OLS_beta_XZ <- safe_coef(ols_fit, "X:Z")
-
+  
   cf_names <- names(coef(ols_fit))
   idx_X    <- which(cf_names == "X")
   idx_XZ   <- which(cf_names == "X:Z")
-
+  
   beta_ols  <- coef(ols_fit)
   V_ols     <- vcov(ols_fit)
   C_ols     <- matrix(0.0, 2L, length(beta_ols))
   C_ols[1L, idx_X]  <- 1.0
   C_ols[2L, idx_XZ] <- 1.0
-
+  
   Cb_ols  <- C_ols %*% beta_ols
   CVC_ols <- C_ols %*% V_ols %*% t(C_ols)
   F_ols   <- as.numeric(0.5 * t(Cb_ols) %*% solve(CVC_ols) %*% Cb_ols)
   p_ols   <- pf(F_ols, 2L, df.residual(ols_fit), lower.tail = FALSE)
-
+  
   OLS_score  <- 1 - p_ols
   OLS_reject <- as.integer(p_ols <= alpha_sig)
-
+  
   ##########################################################
   ## (2) MVMR  (Multivariable Mendelian Randomization)
   ##
+  ## Standard MVMR is an additive model: it estimates the
+  ## causal effect of each exposure adjusting for the other,
+  ## but does NOT include an interaction term. The interaction
+  ## beta_XZ is therefore not estimable from this method.
+  ##
   ## All instruments [G, H] are used jointly in the first
-  ## stage for BOTH exposures X and Z. This is standard
-  ## MVMR practice: every available IV enters each first-
-  ## stage model, letting the data determine each exposure's
-  ## genetic architecture.
+  ## stage for BOTH exposures X and Z (standard MVMR practice).
   ##
   ## First stage (OLS per exposure):
   ##   X_i = mu_X + [G_i, H_i]' pi_X + V_i' alpha_X + eps_Xi
   ##   Z_i = mu_Z + [G_i, H_i]' pi_Z + V_i' alpha_Z + eps_Zi
-  ## Fitted values Xhat, Zhat are re-centred before the
-  ## interaction is formed to reduce collinearity.
   ##
-  ## Second-stage design matrix:
-  ##   W = [1_n | Xhat_c | Zhat_c | Xhat_c * Zhat_c | V]
-  ## Coefficients: theta = (W'W)^{-1} W'y
-  ##   theta[2] = beta_X,   theta[4] = beta_XZ
+  ## Second-stage design matrix (additive, no interaction):
+  ##   W = [1_n | Xhat_c | Zhat_c | V]
+  ##   theta = (W'W)^{-1} W'y;   theta[2] = beta_X
   ##
-  ## Communication score: 1 - p_F
-  ##   Joint Wald F-test  H0: beta_X = beta_XZ = 0
-  ##   sigma^2 = ||y - W theta||^2 / (n - p)
-  ##   F  = (1/2)(C theta)' [sigma^2 C(W'W)^{-1}C']^{-1}(C theta)
-  ##   p_F = P(F(2, n-p) > F)
-  ##   score = 1 - p_F;   reject if p_F <= alpha_sig
+  ## Communication score: 1 - p_t
+  ##   Wald t-test  H0: beta_X = 0
+  ##   t = beta_X_hat / se(beta_X_hat)
+  ##   p_t = 2 * P(t(n - p) > |t|)
+  ##   score = 1 - p_t;   reject if p_t <= alpha_sig
   ##########################################################
   df_fsX_mv <- data.frame(
     X = x,
@@ -340,34 +340,32 @@ run_methods <- function(dat, pip_thr = 0.5, alpha_sig = 0.05) {
     setNames(as.data.frame(all_IVs), IV_names),
     setNames(as.data.frame(V),       V_names)
   )
-
+  
   fs_X_mv   <- lm(X ~ ., data = df_fsX_mv)
   fs_Z_mv   <- lm(Z ~ ., data = df_fsZ_mv)
-  Xhat_mv_c <- fitted(fs_X_mv) - mean(fitted(fs_X_mv))  # centred fitted values
+  Xhat_mv_c <- fitted(fs_X_mv) - mean(fitted(fs_X_mv))
   Zhat_mv_c <- fitted(fs_Z_mv) - mean(fitted(fs_Z_mv))
-
-  p_mv     <- 4L + pV  # number of second-stage parameters
-  W_mv     <- cbind(1, Xhat_mv_c, Zhat_mv_c, Xhat_mv_c * Zhat_mv_c, V)
+  
+  # Additive second stage: no interaction term
+  p_mv     <- 3L + pV   # intercept + Xhat + Zhat + V columns
+  W_mv     <- cbind(1, Xhat_mv_c, Zhat_mv_c, V)
   WtW_mv   <- crossprod(W_mv)
   WtW_mv_i <- solve(WtW_mv)
   theta_mv <- WtW_mv_i %*% crossprod(W_mv, y)
   e_mv     <- y - W_mv %*% theta_mv
   s2_mv    <- sum(e_mv^2) / (n - p_mv)
-
+  
   MVMR_beta_X  <- theta_mv[2L, 1L]
-  MVMR_beta_XZ <- theta_mv[4L, 1L]
-
-  C_mv         <- matrix(0.0, 2L, p_mv)
-  C_mv[1L, 2L] <- 1.0  # selects beta_X
-  C_mv[2L, 4L] <- 1.0  # selects beta_XZ
-  Ctheta_mv    <- C_mv %*% theta_mv
-  M_mv         <- s2_mv * (C_mv %*% WtW_mv_i %*% t(C_mv))
-  F_mv         <- as.numeric(0.5 * t(Ctheta_mv) %*% solve(M_mv) %*% Ctheta_mv)
-  p_mv_F       <- pf(F_mv, 2L, n - p_mv, lower.tail = FALSE)
-
+  MVMR_beta_XZ <- NA_real_   # interaction not modeled in standard MVMR
+  
+  # 1-df Wald t-test: H0: beta_X = 0
+  se_betaX_mv <- sqrt(s2_mv * WtW_mv_i[2L, 2L])
+  t_mv        <- MVMR_beta_X / se_betaX_mv
+  p_mv_F      <- 2 * pt(abs(t_mv), df = n - p_mv, lower.tail = FALSE)
+  
   MVMR_score  <- 1 - p_mv_F
   MVMR_reject <- as.integer(p_mv_F <= alpha_sig)
-
+  
   ##########################################################
   ## (3) MR-BMA  (Bayesian Model Averaging MR)
   ##
@@ -401,23 +399,23 @@ run_methods <- function(dat, pip_thr = 0.5, alpha_sig = 0.05) {
                          dimnames = list(NULL, c("X", "Z")))
   betaY_bma    <- numeric(n_all_IV)
   se_betaY_bma <- numeric(n_all_IV)
-
+  
   for (j in seq_len(n_all_IV)) {
     iv_j <- all_IVs[, j]
-
+    
     sXj <- summary(lm(x ~ iv_j))$coefficients
     betaX_bma[j, 1]    <- sXj[2L, 1L]
     se_betaX_bma[j, 1] <- sXj[2L, 2L]
-
+    
     sZj <- summary(lm(z ~ iv_j))$coefficients
     betaX_bma[j, 2]    <- sZj[2L, 1L]
     se_betaX_bma[j, 2] <- sZj[2L, 2L]
-
+    
     sYj <- summary(lm(y ~ iv_j))$coefficients
     betaY_bma[j]    <- sYj[2L, 1L]
     se_betaY_bma[j] <- sYj[2L, 2L]
   }
-
+  
   bma_res <- tryCatch(
     mr_bma_simple(betaX    = betaX_bma,
                   betaY    = betaY_bma,
@@ -425,7 +423,7 @@ run_methods <- function(dat, pip_thr = 0.5, alpha_sig = 0.05) {
                   se.betaY = se_betaY_bma),
     error = function(e) NULL
   )
-
+  
   if (is.null(bma_res)) {
     MRBMA_score   <- NA_real_
     MRBMA_reject  <- NA_integer_
@@ -437,7 +435,7 @@ run_methods <- function(dat, pip_thr = 0.5, alpha_sig = 0.05) {
     MRBMA_beta_X  <- as.numeric(bma_res$MACE["X"])
     MRBMA_beta_XZ <- NA_real_  # interaction not modeled by MR-BMA
   }
-
+  
   ##########################################################
   ## (4) MR-CCC  (Bayesian 2SLS with spike-and-slab prior)
   ##
@@ -472,21 +470,21 @@ run_methods <- function(dat, pip_thr = 0.5, alpha_sig = 0.05) {
     gZ      = min(n, 100),
     gBeta   = min(n, 100)
   )
-
+  
   MR_beta_X  <- res_mr$Beta_X_mean
   MR_beta_XZ <- res_mr$Beta_XZ_mean
   MR_score   <- res_mr$gamma_mean
-
+  
   list(
     OLS_beta_X  = OLS_beta_X,   OLS_beta_XZ  = OLS_beta_XZ,
     OLS_score   = OLS_score,    OLS_reject   = OLS_reject,
-
+    
     MVMR_beta_X  = MVMR_beta_X,  MVMR_beta_XZ  = MVMR_beta_XZ,
     MVMR_score   = MVMR_score,   MVMR_reject   = MVMR_reject,
-
+    
     MRBMA_beta_X  = MRBMA_beta_X,  MRBMA_beta_XZ  = MRBMA_beta_XZ,
     MRBMA_score   = MRBMA_score,   MRBMA_reject   = MRBMA_reject,
-
+    
     MR_beta_X  = MR_beta_X,   MR_beta_XZ  = MR_beta_XZ,
     MR_score   = MR_score
   )
@@ -513,7 +511,7 @@ run_one_replicate <- function(scenario_name,
                               pip_thr       = 0.5,
                               alpha_sig     = 0.05) {
   pars <- scenario_list[[scenario_name]]
-
+  
   dat <- generate_data(
     n             = n,
     pG            = pG,
@@ -526,9 +524,9 @@ run_one_replicate <- function(scenario_name,
     pi_val        = pi_val,
     seed          = seed
   )
-
+  
   fit <- run_methods(dat, pip_thr = pip_thr, alpha_sig = alpha_sig)
-
+  
   # gamma_true = 1 if at least one causal effect is nonzero
   data.frame(
     scenario     = scenario_name,
@@ -536,16 +534,16 @@ run_one_replicate <- function(scenario_name,
     gamma_true   = as.integer((pars$beta_X != 0) || (pars$beta_XZ != 0)),
     beta_X_true  = pars$beta_X,
     beta_XZ_true = pars$beta_XZ,
-
+    
     OLS_score   = fit$OLS_score,    OLS_reject  = fit$OLS_reject,
     OLS_beta_X  = fit$OLS_beta_X,   OLS_beta_XZ = fit$OLS_beta_XZ,
-
+    
     MVMR_score   = fit$MVMR_score,   MVMR_reject  = fit$MVMR_reject,
     MVMR_beta_X  = fit$MVMR_beta_X,  MVMR_beta_XZ = fit$MVMR_beta_XZ,
-
+    
     MRBMA_score   = fit$MRBMA_score,   MRBMA_reject  = fit$MRBMA_reject,
     MRBMA_beta_X  = fit$MRBMA_beta_X,  MRBMA_beta_XZ = fit$MRBMA_beta_XZ,
-
+    
     MR_score   = fit$MR_score,
     MR_reject  = as.integer(fit$MR_score >= pip_thr),
     MR_beta_X  = fit$MR_beta_X,
@@ -588,12 +586,12 @@ run_simulation_grid <- function(sample_sizes  = c(500, 1000, 10000, 30000),
   ) %>%
     arrange(desc(n)) %>%
     mutate(seed = seq_len(n()))
-
+  
   # Prevent BLAS/OpenMP from spawning threads inside each forked worker
   Sys.setenv(OMP_NUM_THREADS      = "1",
              OPENBLAS_NUM_THREADS = "1",
              MKL_NUM_THREADS      = "1")
-
+  
   res_list <- mclapply(seq_len(nrow(jobs)), function(k) {
     run_one_replicate(
       scenario_name = jobs$scenario[k],
@@ -608,7 +606,7 @@ run_simulation_grid <- function(sample_sizes  = c(500, 1000, 10000, 30000),
       alpha_sig     = alpha_sig
     )
   }, mc.cores = mc_cores)
-
+  
   bind_rows(res_list)
 }
 
@@ -804,16 +802,13 @@ print(p_betaX)
 ############################################################
 ## PLOT 3: beta_XZ ESTIMATES
 ##
-## MR-BMA is excluded entirely -- it does not model the
-## interaction term and has no beta_XZ estimate. Removing it
-## from the factor levels prevents a blank x-axis slot.
-##
-## OLS / MVMR / MR-CCC: point estimate of interaction effect
-## Red dashed line: true beta_XZ value
+## Only OLS and MR-CCC estimate the interaction term.
+## MR-BMA and MVMR are excluded (neither models beta_XZ).
+## Red dashed line: true beta_XZ value.
 ############################################################
 sim_long_xz <- sim_long %>%
-  filter(method != "MR-BMA") %>%
-  mutate(method = factor(method, levels = c("OLS", "MVMR", "MR-CCC")))
+  filter(method %in% c("OLS", "MR-CCC")) %>%
+  mutate(method = factor(method, levels = c("OLS", "MR-CCC")))
 
 betaXZ_df_xz <- sim_long_xz %>%
   distinct(scenario, n, beta_XZ_true)
@@ -831,7 +826,7 @@ p_betaXZ <- ggplot(sim_long_xz, aes(x = method, y = beta_XZ_hat)) +
   theme_pub +
   labs(
     title    = expression(paste("Estimated ", beta[XZ], " across methods and scenarios")),
-    subtitle = "Red dashed line = true value  (MR-BMA excluded: interaction not modeled)",
+    subtitle = "Red dashed line = true value  (MR-BMA and MVMR excluded: interaction not modeled)",
     x        = "Method",
     y        = expression(hat(beta)[XZ])
   )
