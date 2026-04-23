@@ -17,9 +17,9 @@
 ##   MR-CCC -- Bayesian 2SLS with spike-and-slab prior (this paper)
 ##
 ## Scoring convention:
-##   OLS   : score = 1 - p_t  (Wald t-test, H0: beta_X = 0;
-##            reject if p_t <= alpha_sig)
-##   MVMR  : score = 1 - p_t  (Wald t-test, H0: beta_X = 0;
+##   OLS   : score = 1 - p_F  (joint F-test, H0: beta_X = beta_XZ = 0;
+##            reject if p_F <= alpha_sig)
+##   MVMR  : score = 1 - p_t  (t-test, H0: beta_X = 0;
 ##            no interaction term; reject if p_t <= alpha_sig)
 ##   MR-BMA: score = MIP_X    (marginal inclusion probability
 ##            for ligand X; reject if MIP_X > pip_thr)
@@ -32,8 +32,6 @@ library(parallel)
 library(dplyr)
 library(tidyr)
 library(ggplot2)
-
-
 ############################################################
 ## MR-BMA: SELF-CONTAINED IMPLEMENTATION
 ##
@@ -64,25 +62,25 @@ mr_bma_simple <- function(betaX, betaY, se.betaX, se.betaY,
   J <- nrow(betaX)
   K <- ncol(betaX)
   if (is.null(g)) g <- J  # Zellner's unit-information g = J
-  
+
   # Standardise by se.betaY (makes outcome variance = 1)
   y_std <- betaY / se.betaY
   W_std <- sweep(betaX, 1, se.betaY, "/")  # J x K
-  
+
   # Enumerate 2^K models (binary inclusion matrix)
   model_mat <- as.matrix(expand.grid(rep(list(0:1), K)))
   colnames(model_mat) <- colnames(betaX)
   n_models <- nrow(model_mat)
-  
+
   log_BF     <- numeric(n_models)
   log_prior  <- numeric(n_models)
   theta_list <- vector("list", n_models)
-  
+
   for (m in seq_len(n_models)) {
     inc <- which(model_mat[m, ] == 1)
     p_k <- length(inc)
     log_prior[m] <- p_k * log(prior_pi / (1 - prior_pi))
-    
+
     if (p_k == 0L) {
       log_BF[m]       <- 0
       theta_list[[m]] <- numeric(K)
@@ -90,30 +88,30 @@ mr_bma_simple <- function(betaX, betaY, se.betaX, se.betaY,
       W_k <- W_std[, inc, drop = FALSE]
       XtX <- crossprod(W_k)
       Xty <- crossprod(W_k, y_std)
-      
+
       XtX_inv <- tryCatch(solve(XtX), error = function(e) NULL)
       if (is.null(XtX_inv)) {
         log_BF[m]       <- -Inf
         theta_list[[m]] <- numeric(K)
         next
       }
-      
+
       SS_model_k <- as.numeric(t(Xty) %*% XtX_inv %*% Xty)
       log_BF[m]  <- -p_k / 2 * log(1 + g) +
         g / (2 * (1 + g)) * SS_model_k
-      
+
       # MAP estimate under g-prior (shrinkage factor g/(1+g))
       th_full      <- numeric(K)
       th_full[inc] <- as.numeric(g / (1 + g) * XtX_inv %*% Xty)
       theta_list[[m]] <- th_full
     }
   }
-  
+
   # Posterior model probabilities (numerically stable)
   log_unnorm <- log_BF + log_prior
   log_unnorm <- log_unnorm - max(log_unnorm)
   PP <- exp(log_unnorm) / sum(exp(log_unnorm))
-  
+
   # Marginal inclusion probabilities and model-averaged effects
   MIP  <- numeric(K)
   MACE <- numeric(K)
@@ -125,15 +123,13 @@ mr_bma_simple <- function(betaX, betaY, se.betaX, se.betaY,
                             function(m) theta_list[[m]][k],
                             numeric(1L)))
   }
-  
+
   names(MIP)  <- colnames(betaX)
   names(MACE) <- colnames(betaX)
-  
+
   list(MIP = MIP, MACE = MACE, PP = PP,
        model = model_mat, BF = exp(log_BF))
 }
-
-
 ############################################################
 ## USER SETTINGS
 ############################################################
@@ -146,9 +142,7 @@ pG_val        <- 5                             # number of sender cis-eQTL instr
 pH_val        <- 5                             # number of receiver cis-eQTL instruments
 pV_val        <- 3                             # number of shared covariates
 pi_val        <- 0.5                           # true first-stage eQTL effect size
-
 method_levels <- c("OLS", "MVMR", "MR-BMA", "MR-CCC")
-
 # Simulation scenarios:
 #   S1 -- null (no causal communication; beta_X = beta_XZ = 0)
 #   S2 -- signal with receptor-modulated interaction (beta_X = beta_XZ = 0.3)
@@ -158,8 +152,6 @@ scenario_list <- list(
   S2 = list(beta_X = 0.3, beta_XZ = 0.3, beta_Z = 0.5),
   S3 = list(beta_X = 0.3, beta_XZ = 0.0, beta_Z = 0.5)
 )
-
-
 ############################################################
 ## DATA GENERATION
 ##
@@ -185,18 +177,18 @@ generate_data <- function(n             = 300,
                           pi_val        = 0.5,
                           seed          = NULL) {
   if (!is.null(seed)) set.seed(seed)
-  
+
   G <- matrix(rnorm(n * pG), n, pG)  # sender cis-eQTL genotypes
   H <- matrix(rnorm(n * pH), n, pH)  # receiver cis-eQTL genotypes
   V <- matrix(rnorm(n * pV), n, pV)  # shared observed covariates
   U <- rnorm(n)                       # shared unmeasured confounder
-  
+
   pi_X    <- rep(pi_val, pG)  # true first-stage eQTL effects for sender
   pi_Z    <- rep(pi_val, pH)  # true first-stage eQTL effects for receiver
   alpha_X <- rep(0.3, pV)     # covariate effects on ligand
   alpha_Z <- rep(0.3, pV)     # covariate effects on receptor
   alpha_Y <- rep(0.3, pV)     # covariate effects on pathway
-  
+
   X <- as.numeric(G %*% pi_X + V %*% alpha_X + conf_strength * U + rnorm(n))
   Z <- as.numeric(H %*% pi_Z + V %*% alpha_Z + conf_strength * U + rnorm(n))
   Y <- as.numeric(beta_X  * X +
@@ -205,7 +197,7 @@ generate_data <- function(n             = 300,
                     V %*% alpha_Y +
                     conf_strength * U +
                     rnorm(n))
-  
+
   list(
     X = matrix(X, ncol = 1),
     Z = matrix(Z, ncol = 1),
@@ -213,12 +205,9 @@ generate_data <- function(n             = 300,
     G = G, H = H, V = V
   )
 }
-
-
 ############################################################
 ## HELPERS
 ############################################################
-
 # Safely extract a named coefficient from a fitted lm object.
 # Returns NA if the term is absent (e.g., dropped due to collinearity).
 safe_coef <- function(fit, term) {
@@ -226,7 +215,6 @@ safe_coef <- function(fit, term) {
   if (!term %in% names(cf)) return(NA_real_)
   unname(cf[term])
 }
-
 # Format mean (SD) of a numeric vector for summary tables.
 # Finite values only; returns "---" if nothing is finite.
 fmt_mean_sd <- function(x, digits = 3) {
@@ -237,18 +225,16 @@ fmt_mean_sd <- function(x, digits = 3) {
     format(round(sd(x),   digits), nsmall = digits), ")"
   )
 }
-
-
 ############################################################
 ## RUN ALL 4 METHODS ON ONE DATASET
 ############################################################
 run_methods <- function(dat, pip_thr = 0.5, alpha_sig = 0.05) {
-  
+
   X <- dat$X;  Z <- dat$Z;  Y <- dat$Y
   G <- dat$G;  H <- dat$H;  V <- dat$V
   n  <- nrow(X)
   pV <- ncol(V)
-  
+
   # ----------------------------------------------------------
   # CENTERING: subtract sample means from x, z, y.
   # Enforces the paper's centering assumption exactly in each
@@ -258,17 +244,17 @@ run_methods <- function(dat, pip_thr = 0.5, alpha_sig = 0.05) {
   x <- as.numeric(X) - mean(X)
   z <- as.numeric(Z) - mean(Z)
   y <- as.numeric(Y) - mean(Y)
-  
+
   V_names <- paste0("V", seq_len(pV))
   df <- data.frame(
     Y = y, X = x, Z = z,
     setNames(as.data.frame(V), V_names)
   )
-  
+
   all_IVs  <- cbind(G, H)         # combined instrument matrix [G | H]
   n_all_IV <- ncol(all_IVs)       # pG + pH
   IV_names <- paste0("IV", seq_len(n_all_IV))
-  
+
   ##########################################################
   ## (1) OLS with interaction
   ##
@@ -277,7 +263,7 @@ run_methods <- function(dat, pip_thr = 0.5, alpha_sig = 0.05) {
   ## Fit via OLS (no IV correction; confounding ignored).
   ##
   ## Communication score: 1 - p_F
-  ##   Joint Wald F-test  H0: beta_X = beta_XZ = 0
+  ##   Joint F-test  H0: beta_X = beta_XZ = 0
   ##   Contrast matrix C selects (beta_X, beta_XZ) from coef.
   ##   F  = (1/2)(C beta)' [C vcov C']^{-1} (C beta)
   ##   p_F = P(F(2, df.res) > F)
@@ -286,25 +272,25 @@ run_methods <- function(dat, pip_thr = 0.5, alpha_sig = 0.05) {
   ols_fit     <- lm(Y ~ X * Z + ., data = df)
   OLS_beta_X  <- safe_coef(ols_fit, "X")
   OLS_beta_XZ <- safe_coef(ols_fit, "X:Z")
-  
+
   cf_names <- names(coef(ols_fit))
   idx_X    <- which(cf_names == "X")
   idx_XZ   <- which(cf_names == "X:Z")
-  
+
   beta_ols  <- coef(ols_fit)
   V_ols     <- vcov(ols_fit)
   C_ols     <- matrix(0.0, 2L, length(beta_ols))
   C_ols[1L, idx_X]  <- 1.0
   C_ols[2L, idx_XZ] <- 1.0
-  
+
   Cb_ols  <- C_ols %*% beta_ols
   CVC_ols <- C_ols %*% V_ols %*% t(C_ols)
   F_ols   <- as.numeric(0.5 * t(Cb_ols) %*% solve(CVC_ols) %*% Cb_ols)
   p_ols   <- pf(F_ols, 2L, df.residual(ols_fit), lower.tail = FALSE)
-  
+
   OLS_score  <- 1 - p_ols
   OLS_reject <- as.integer(p_ols <= alpha_sig)
-  
+
   ##########################################################
   ## (2) MVMR  (Multivariable Mendelian Randomization)
   ##
@@ -325,7 +311,7 @@ run_methods <- function(dat, pip_thr = 0.5, alpha_sig = 0.05) {
   ##   theta = (W'W)^{-1} W'y;   theta[2] = beta_X
   ##
   ## Communication score: 1 - p_t
-  ##   Wald t-test  H0: beta_X = 0
+  ##   t-test  H0: beta_X = 0
   ##   t = beta_X_hat / se(beta_X_hat)
   ##   p_t = 2 * P(t(n - p) > |t|)
   ##   score = 1 - p_t;   reject if p_t <= alpha_sig
@@ -340,12 +326,12 @@ run_methods <- function(dat, pip_thr = 0.5, alpha_sig = 0.05) {
     setNames(as.data.frame(all_IVs), IV_names),
     setNames(as.data.frame(V),       V_names)
   )
-  
+
   fs_X_mv   <- lm(X ~ ., data = df_fsX_mv)
   fs_Z_mv   <- lm(Z ~ ., data = df_fsZ_mv)
   Xhat_mv_c <- fitted(fs_X_mv) - mean(fitted(fs_X_mv))
   Zhat_mv_c <- fitted(fs_Z_mv) - mean(fitted(fs_Z_mv))
-  
+
   # Additive second stage: no interaction term
   p_mv     <- 3L + pV   # intercept + Xhat + Zhat + V columns
   W_mv     <- cbind(1, Xhat_mv_c, Zhat_mv_c, V)
@@ -354,18 +340,18 @@ run_methods <- function(dat, pip_thr = 0.5, alpha_sig = 0.05) {
   theta_mv <- WtW_mv_i %*% crossprod(W_mv, y)
   e_mv     <- y - W_mv %*% theta_mv
   s2_mv    <- sum(e_mv^2) / (n - p_mv)
-  
+
   MVMR_beta_X  <- theta_mv[2L, 1L]
   MVMR_beta_XZ <- NA_real_   # interaction not modeled in standard MVMR
-  
-  # 1-df Wald t-test: H0: beta_X = 0
+
+  # t-test (1 df): H0: beta_X = 0
   se_betaX_mv <- sqrt(s2_mv * WtW_mv_i[2L, 2L])
   t_mv        <- MVMR_beta_X / se_betaX_mv
-  p_mv_F      <- 2 * pt(abs(t_mv), df = n - p_mv, lower.tail = FALSE)
-  
-  MVMR_score  <- 1 - p_mv_F
-  MVMR_reject <- as.integer(p_mv_F <= alpha_sig)
-  
+  p_mv_t      <- 2 * pt(abs(t_mv), df = n - p_mv, lower.tail = FALSE)
+
+  MVMR_score  <- 1 - p_mv_t
+  MVMR_reject <- as.integer(p_mv_t <= alpha_sig)
+
   ##########################################################
   ## (3) MR-BMA  (Bayesian Model Averaging MR)
   ##
@@ -399,23 +385,23 @@ run_methods <- function(dat, pip_thr = 0.5, alpha_sig = 0.05) {
                          dimnames = list(NULL, c("X", "Z")))
   betaY_bma    <- numeric(n_all_IV)
   se_betaY_bma <- numeric(n_all_IV)
-  
+
   for (j in seq_len(n_all_IV)) {
     iv_j <- all_IVs[, j]
-    
+
     sXj <- summary(lm(x ~ iv_j))$coefficients
     betaX_bma[j, 1]    <- sXj[2L, 1L]
     se_betaX_bma[j, 1] <- sXj[2L, 2L]
-    
+
     sZj <- summary(lm(z ~ iv_j))$coefficients
     betaX_bma[j, 2]    <- sZj[2L, 1L]
     se_betaX_bma[j, 2] <- sZj[2L, 2L]
-    
+
     sYj <- summary(lm(y ~ iv_j))$coefficients
     betaY_bma[j]    <- sYj[2L, 1L]
     se_betaY_bma[j] <- sYj[2L, 2L]
   }
-  
+
   bma_res <- tryCatch(
     mr_bma_simple(betaX    = betaX_bma,
                   betaY    = betaY_bma,
@@ -423,7 +409,7 @@ run_methods <- function(dat, pip_thr = 0.5, alpha_sig = 0.05) {
                   se.betaY = se_betaY_bma),
     error = function(e) NULL
   )
-  
+
   if (is.null(bma_res)) {
     MRBMA_score   <- NA_real_
     MRBMA_reject  <- NA_integer_
@@ -435,7 +421,7 @@ run_methods <- function(dat, pip_thr = 0.5, alpha_sig = 0.05) {
     MRBMA_beta_X  <- as.numeric(bma_res$MACE["X"])
     MRBMA_beta_XZ <- NA_real_  # interaction not modeled by MR-BMA
   }
-  
+
   ##########################################################
   ## (4) MR-CCC  (Bayesian 2SLS with spike-and-slab prior)
   ##
@@ -470,27 +456,25 @@ run_methods <- function(dat, pip_thr = 0.5, alpha_sig = 0.05) {
     gZ      = min(n, 100),
     gBeta   = min(n, 100)
   )
-  
+
   MR_beta_X  <- res_mr$Beta_X_mean
   MR_beta_XZ <- res_mr$Beta_XZ_mean
   MR_score   <- res_mr$gamma_mean
-  
+
   list(
     OLS_beta_X  = OLS_beta_X,   OLS_beta_XZ  = OLS_beta_XZ,
     OLS_score   = OLS_score,    OLS_reject   = OLS_reject,
-    
+
     MVMR_beta_X  = MVMR_beta_X,  MVMR_beta_XZ  = MVMR_beta_XZ,
     MVMR_score   = MVMR_score,   MVMR_reject   = MVMR_reject,
-    
+
     MRBMA_beta_X  = MRBMA_beta_X,  MRBMA_beta_XZ  = MRBMA_beta_XZ,
     MRBMA_score   = MRBMA_score,   MRBMA_reject   = MRBMA_reject,
-    
+
     MR_beta_X  = MR_beta_X,   MR_beta_XZ  = MR_beta_XZ,
     MR_score   = MR_score
   )
 }
-
-
 ############################################################
 ## ONE REPLICATE
 ##
@@ -511,7 +495,7 @@ run_one_replicate <- function(scenario_name,
                               pip_thr       = 0.5,
                               alpha_sig     = 0.05) {
   pars <- scenario_list[[scenario_name]]
-  
+
   dat <- generate_data(
     n             = n,
     pG            = pG,
@@ -524,9 +508,9 @@ run_one_replicate <- function(scenario_name,
     pi_val        = pi_val,
     seed          = seed
   )
-  
+
   fit <- run_methods(dat, pip_thr = pip_thr, alpha_sig = alpha_sig)
-  
+
   # gamma_true = 1 if at least one causal effect is nonzero
   data.frame(
     scenario     = scenario_name,
@@ -534,24 +518,22 @@ run_one_replicate <- function(scenario_name,
     gamma_true   = as.integer((pars$beta_X != 0) || (pars$beta_XZ != 0)),
     beta_X_true  = pars$beta_X,
     beta_XZ_true = pars$beta_XZ,
-    
+
     OLS_score   = fit$OLS_score,    OLS_reject  = fit$OLS_reject,
     OLS_beta_X  = fit$OLS_beta_X,   OLS_beta_XZ = fit$OLS_beta_XZ,
-    
+
     MVMR_score   = fit$MVMR_score,   MVMR_reject  = fit$MVMR_reject,
     MVMR_beta_X  = fit$MVMR_beta_X,  MVMR_beta_XZ = fit$MVMR_beta_XZ,
-    
+
     MRBMA_score   = fit$MRBMA_score,   MRBMA_reject  = fit$MRBMA_reject,
     MRBMA_beta_X  = fit$MRBMA_beta_X,  MRBMA_beta_XZ = fit$MRBMA_beta_XZ,
-    
+
     MR_score   = fit$MR_score,
     MR_reject  = as.integer(fit$MR_score >= pip_thr),
     MR_beta_X  = fit$MR_beta_X,
     MR_beta_XZ = fit$MR_beta_XZ
   )
 }
-
-
 ############################################################
 ## RUN FULL SIMULATION GRID
 ##
@@ -586,12 +568,12 @@ run_simulation_grid <- function(sample_sizes  = c(500, 1000, 10000, 30000),
   ) %>%
     arrange(desc(n)) %>%
     mutate(seed = seq_len(n()))
-  
+
   # Prevent BLAS/OpenMP from spawning threads inside each forked worker
   Sys.setenv(OMP_NUM_THREADS      = "1",
              OPENBLAS_NUM_THREADS = "1",
              MKL_NUM_THREADS      = "1")
-  
+
   res_list <- mclapply(seq_len(nrow(jobs)), function(k) {
     run_one_replicate(
       scenario_name = jobs$scenario[k],
@@ -606,11 +588,9 @@ run_simulation_grid <- function(sample_sizes  = c(500, 1000, 10000, 30000),
       alpha_sig     = alpha_sig
     )
   }, mc.cores = mc_cores)
-  
+
   bind_rows(res_list)
 }
-
-
 ############################################################
 ## TIDY LONG FORMAT
 ##
@@ -656,12 +636,9 @@ make_long_results <- function(df_raw, pip_thr = 0.5) {
   ) %>%
     mutate(method = factor(method, levels = method_levels))
 }
-
-
 ############################################################
 ## TABLE SUMMARIES
 ############################################################
-
 # Produce a summary table with mean (SD) for each metric
 # grouped by (scenario, n, method).
 make_table_summary <- function(df_long) {
@@ -678,7 +655,6 @@ make_table_summary <- function(df_long) {
     ) %>%
     arrange(scenario, n, method)
 }
-
 # Split summary table by scenario for convenient printing.
 make_scenario_tables <- function(df_long) {
   tab <- make_table_summary(df_long)
@@ -688,13 +664,10 @@ make_scenario_tables <- function(df_long) {
     table_s3 = tab %>% filter(scenario == "S3") %>% arrange(n, method)
   )
 }
-
-
 ############################################################
 ## RUN SIMULATION
 ############################################################
 cat("Running simulation (4 methods, 3 scenarios, 4 sample sizes)...\n")
-
 sim_raw  <- run_simulation_grid(
   sample_sizes  = sample_sizes,
   R_reps        = R_reps,
@@ -706,9 +679,7 @@ sim_raw  <- run_simulation_grid(
   pip_thr       = pip_thr,
   alpha_sig     = alpha_sig
 )
-
 sim_long <- make_long_results(sim_raw, pip_thr = pip_thr)
-
 # Print scenario-level summary tables
 tabs <- make_scenario_tables(sim_long)
 cat("\n--- Scenario 1 (null) ---\n")
@@ -717,8 +688,6 @@ cat("\n--- Scenario 2 (signal + interaction) ---\n")
 print(tabs$table_s2)
 cat("\n--- Scenario 3 (signal, no interaction) ---\n")
 print(tabs$table_s3)
-
-
 ############################################################
 ## PUBLICATION THEME
 ############################################################
@@ -733,23 +702,20 @@ theme_pub <- theme_bw(base_size = 14) +
     legend.text   = element_text(size = 12),
     axis.text.x   = element_text(angle = 25, hjust = 1)
   )
-
 # Reference lines for true parameter values
 gamma_df  <- sim_long %>%
   distinct(scenario) %>%
   mutate(gamma_true = case_when(scenario == "S1" ~ 0, TRUE ~ 1))
-
 betaX_df  <- sim_long %>% distinct(scenario, n, beta_X_true)
 betaXZ_df <- sim_long %>% distinct(scenario, n, beta_XZ_true)
-
-
 ############################################################
 ## PLOT 1: COMMUNICATION SCORE
 ##
 ## Score definition per method:
-##   OLS, MVMR : 1 - p_F  (joint Wald F-test)
-##   MR-BMA    : MIP_X    (marginal inclusion probability for X)
-##   MR-CCC    : PIP      (posterior inclusion probability P(gamma=1|data))
+##   OLS   : 1 - p_F  (joint F-test, H0: beta_X = beta_XZ = 0)
+##   MVMR  : 1 - p_t  (t-test, H0: beta_X = 0)
+##   MR-BMA: MIP_X    (marginal inclusion probability for X)
+##   MR-CCC: PIP      (posterior inclusion probability P(gamma=1|data))
 ## Red dashed line: true communication state (0 for S1, 1 for S2/S3)
 ############################################################
 p_score <- ggplot(sim_long, aes(x = method, y = score)) +
@@ -770,8 +736,6 @@ p_score <- ggplot(sim_long, aes(x = method, y = score)) +
     y        = "Communication score"
   )
 print(p_score)
-
-
 ############################################################
 ## PLOT 2: beta_X ESTIMATES
 ##
@@ -797,8 +761,6 @@ p_betaX <- ggplot(sim_long, aes(x = method, y = beta_X_hat)) +
     y        = expression(hat(beta)[X])
   )
 print(p_betaX)
-
-
 ############################################################
 ## PLOT 3: beta_XZ ESTIMATES
 ##
@@ -809,10 +771,8 @@ print(p_betaX)
 sim_long_xz <- sim_long %>%
   filter(method %in% c("OLS", "MR-CCC")) %>%
   mutate(method = factor(method, levels = c("OLS", "MR-CCC")))
-
 betaXZ_df_xz <- sim_long_xz %>%
   distinct(scenario, n, beta_XZ_true)
-
 p_betaXZ <- ggplot(sim_long_xz, aes(x = method, y = beta_XZ_hat)) +
   geom_boxplot(outlier.alpha = 0.35) +
   geom_hline(
@@ -831,8 +791,6 @@ p_betaXZ <- ggplot(sim_long_xz, aes(x = method, y = beta_XZ_hat)) +
     y        = expression(hat(beta)[XZ])
   )
 print(p_betaXZ)
-
-
 ############################################################
 ## SAVE (uncomment to write outputs)
 ############################################################
