@@ -1,49 +1,51 @@
-# History files
+# ---- Data: archived on Zenodo (10.5281/zenodo.19675075) and CellPhoneDB ----
+Data/
+
+# ---- Package build and check artefacts (the package lives in bitansa/MRCCC) ----
+MRCCC/
+MRCCC.Rcheck/
+MRCCC.BiocCheck/
+MRCCC_*.tar.gz
+
+# ---- Working folders that are not part of the reproducibility record ----
+Paper Stuffs/
+Papers/
+C Codes/
+R Codes/
+Real Data Analysis/
+Simulation Studies/
+
+# ---- R and RStudio session state ----
 .Rhistory
+.RData
+.Rproj.user/
+*.Rproj
 .Rapp.history
 
-# Session Data files
-.RData
-.RDataTmp
+# ---- Compiled objects from Rcpp::sourceCpp ----
+*.o
+*.so
+*.dll
+*.dylib
 
-# User-specific files
-.Ruserdata
+# ---- Local archives and tables ----
+# Local archive folders and tables that are not produced by the scripts in
+# Github Codes/ and are not part of the reproducibility record.
+Plots/archive_*/
+Plots/Tables/
 
-# Example code in package build process
-*-Ex.R
+# ---- Archived and diagnostic results ----
+# archive_* folders are local archives, not produced by the current scripts.
+# probe_* and smoke_* are short diagnostic runs, not reportable results.
+Results/archive_*/
+Results/probe_*/
+Results/smoke_*
+Plots/smoke_*
 
-# Output files from R CMD build
-/*.tar.gz
+# ---- Stray graphics device output ----
+Rplots.pdf
 
-# Output files from R CMD check
-/*.Rcheck/
-
-# RStudio files
-.Rproj.user/
-
-# produced vignettes
-vignettes/*.html
-vignettes/*.pdf
-
-# OAuth2 token, see https://github.com/hadley/httr/releases/tag/v0.3
-.httr-oauth
-
-# knitr and R markdown default cache directories
-*_cache/
-/cache/
-
-# Temporary files created by R markdown
-*.utf8.md
-*.knit.md
-
-# R Environment Variables
-.Renviron
-
-# pkgdown site
-docs/
-
-# translation temp files
-po/*~
-
-# RStudio Connect folder
-rsconnect/
+# ---- Logs and OS files ----
+*.log
+.DS_Store
+Thumbs.db
