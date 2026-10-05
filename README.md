@@ -1,5 +1,7 @@
 # MR-CCC: reproducibility repository
 
+[![DOI](https://zenodo.org/badge/1216664035.svg)](https://doi.org/10.5281/zenodo.23167575)
+
 This repository contains the scripts that reproduce every analysis, table
 and figure in
 
@@ -272,6 +274,10 @@ check can never be mistaken for a reportable result. Remove both objects
 (`rm(.mrccc_n_iter, .mrccc_max_triplets)`) before a real run.
 
 ## Citation
+
+Archived releases of this repository are on Zenodo:
+[10.5281/zenodo.23167575](https://doi.org/10.5281/zenodo.23167575)
+(this DOI always resolves to the latest version).
 
 ```bibtex
 @article{sarkar2026mrccc,
