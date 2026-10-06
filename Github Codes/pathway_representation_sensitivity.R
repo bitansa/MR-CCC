@@ -26,7 +26,7 @@
 ## are computed as usual and then their DONOR ORDER is permuted -- the same
 ## permutation applied to all six -- which preserves each representation's
 ## marginal distribution while destroying any association with X. Under this
-## null, an honest procedure should return low PIPs. Running the
+## null, a well-calibrated procedure should return low PIPs. Running the
 ## adaptive rule and a fixed representation through identical permutations
 ## isolates the inflation attributable to selection alone.
 ##
@@ -51,6 +51,10 @@
 ##   representation_fixed_<Cell1>_<Cell2>.csv   PIPs under each fixed choice
 ##   representation_concord_<Cell1>_<Cell2>.csv rank concordance summary
 ##   representation_null_<Cell1>_<Cell2>.csv    permutation null calibration
+##   sessionInfo_pathway_representation_sensitivity.txt
+## Each name is prefixed "smoke_" when the primary run was a check. The fixed
+## and null tables carry PIP_rhat, the Gelman-Rubin statistic of the
+## inclusion indicator across the inherited chains (NA for a single chain).
 ############################################################
 library(dplyr)
 library(tidyr)
@@ -69,14 +73,30 @@ library(GSVA)
              # exactly rather than approximating it with a single chain.
              "N_CHAINS", "INIT_SCALE", "gelman_rubin",
              "pip_thresh", "bayes_fdr",
-             # Instrument selection is LD-clumped; a session holding an
-             # older get_SNP_matrix() lacks these and must re-source.
+             # Instrument selection is LD-clumped; both objects are defined
+             # by real_data_analysis.R alongside get_SNP_matrix().
              "LD_R2_MAX", "clump_by_ld")
 .missing <- .needed[!vapply(.needed, exists, logical(1))]
 if (length(.missing) > 0) {
   stop("Objects missing -- source real_data_analysis.R first.\n  Missing: ",
        paste(.missing, collapse = ", "))
 }
+
+## check_primary_representation(), shared with the other refit scripts,
+## compares the representation chosen here with the one recorded in
+## Output_MR_CCC.
+source("Github Codes/build_triplet_inputs.R")
+
+## ---- Output names ---------------------------------------------------------
+## Prefixed "smoke_" when the primary run in this session was a check, by the
+## rule used in real_data_analysis.R, so that a check never overwrites a
+## reported result.
+.out_prefix <- if ((exists(".out_prefix") && identical(.out_prefix, "smoke_")) ||
+                   isTRUE(get0(".mrccc_truncated", ifnotfound = FALSE)) ||
+                   N_ITER != 100000L ||
+                   !isTRUE(all.equal(LD_R2_MAX, 0.8))) {
+  "smoke_"
+} else ""
 
 ############################################################
 ## USER SETTINGS
@@ -304,6 +324,9 @@ for (run in seq_len(nrow(lr_filtered))) {
   trip_cache[[length(trip_cache) + 1L]] <- tr
 
   chosen <- select_adaptive(tr$Y_list, tr$X)
+  # The adaptive arm is meant to reproduce the primary fit; a different
+  # representation is reported (the refit proceeds with the one chosen here).
+  check_primary_representation(tr$ligand, tr$receptor, tr$pathway, chosen)
 
   for (rep_name in c(REPRESENTATIONS, "Adaptive")) {
     Y <- if (rep_name == "Adaptive") tr$Y_list[[chosen]] else tr$Y_list[[rep_name]]
@@ -314,7 +337,8 @@ for (run in seq_len(nrow(lr_filtered))) {
       ligand = tr$ligand, receptor = tr$receptor, pathway = tr$pathway,
       representation = rep_name,
       adaptive_choice = chosen,
-      PIP = f$PIP, Beta_X = f$Beta_X_std, Beta_XZ = f$Beta_XZ_std
+      PIP = f$PIP, Beta_X = f$Beta_X_std, Beta_XZ = f$Beta_XZ_std,
+      PIP_rhat = f$PIP_rhat
     )
   }
   if (length(trip_cache) %% 10 == 0)
@@ -326,7 +350,8 @@ fixed_res <- bind_rows(rows)
 
 dir.create("Results", showWarnings = FALSE)
 write.csv(fixed_res,
-          paste0("Results/representation_fixed_", Cell1, "_", Cell2, ".csv"),
+          paste0("Results/", .out_prefix, "representation_fixed_",
+                 Cell1, "_", Cell2, ".csv"),
           row.names = FALSE)
 
 ## ---- Discovery sets and rank concordance --------------------------------
@@ -335,6 +360,18 @@ write.csv(fixed_res,
 ## triplets are discovered while ordering the remainder quite differently.
 adaptive_pip <- fixed_res %>% filter(representation == "Adaptive") %>%
   select(ligand, receptor, pathway, PIP_adaptive = PIP)
+
+## The join below is keyed on gene symbols and pathway. A key that occurs
+## more than once would pair each fixed-representation row with several
+## adaptive rows, so it is reported instead of joined.
+.dup_keys <- adaptive_pip %>% count(ligand, receptor, pathway) %>% filter(n > 1L)
+if (nrow(.dup_keys) > 0L) {
+  stop("The (ligand, receptor, pathway) key is not unique for ",
+       nrow(.dup_keys), " triplet(s), e.g. ",
+       paste(.dup_keys$ligand[1], .dup_keys$receptor[1], .dup_keys$pathway[1],
+             sep = " / "),
+       "; the concordance join would duplicate rows.", call. = FALSE)
+}
 
 concord <- fixed_res %>%
   filter(representation != "Adaptive") %>%
@@ -351,7 +388,8 @@ concord <- fixed_res %>%
   )
 
 write.csv(concord,
-          paste0("Results/representation_concord_", Cell1, "_", Cell2, ".csv"),
+          paste0("Results/", .out_prefix, "representation_concord_",
+                 Cell1, "_", Cell2, ".csv"),
           row.names = FALSE)
 
 cat("\n---- Concordance with the adaptive rule ----\n")
@@ -398,7 +436,7 @@ for (b in seq_len(N_PERM)) {
       m <- m + 1
       perm_rows[[m]] <- tibble(
         perm = b, ligand = tr$ligand, receptor = tr$receptor,
-        rule = rule, PIP = f$PIP
+        rule = rule, PIP = f$PIP, PIP_rhat = f$PIP_rhat
       )
     }
   }
@@ -409,7 +447,8 @@ report_fit_failures("Part 2 (permutation null)")
 perm_res <- bind_rows(perm_rows)
 
 write.csv(perm_res,
-          paste0("Results/representation_null_", Cell1, "_", Cell2, ".csv"),
+          paste0("Results/", .out_prefix, "representation_null_",
+                 Cell1, "_", Cell2, ".csv"),
           row.names = FALSE)
 
 cat("\n---- Null calibration (permuted outcomes) ----\n")
@@ -423,5 +462,10 @@ print(as.data.frame(
 cat("\nA higher false positive rate for 'Adaptive' than for '", PRESPECIFIED,
     "' is the inflation attributable to selecting the outcome using X.\n", sep = "")
 
-cat("\nWritten to Results/representation_{fixed,concord,null}_",
+cat("\nWritten to Results/", .out_prefix, "representation_{fixed,concord,null}_",
     Cell1, "_", Cell2, ".csv\n", sep = "")
+
+## Package versions used for this run.
+writeLines(utils::capture.output(sessionInfo()),
+           paste0("Results/", .out_prefix,
+                  "sessionInfo_pathway_representation_sensitivity.txt"))

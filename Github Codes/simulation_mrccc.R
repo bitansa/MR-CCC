@@ -147,11 +147,11 @@ mr_bma_simple <- function(betaX, betaY, se.betaX, se.betaY,
 ##   Simulation (this script). Nothing is reported for an individual
 ##   replicate. The reported quantities are operating characteristics --
 ##   mean communication score and rejection rate -- averaged over 100
-##   replicates. Crucially, the simulated PIPs are far from the 0.5
-##   decision threshold: under the null they cluster near 0 (S1 mean score
-##   at most 0.13) and under signal near 1 (S2 and S3 approx. 1.00), so
-##   Monte Carlo error of the PIP essentially never flips a decision and
-##   20,000 iterations are sufficient.
+##   replicates. Crucially, the simulated PIPs are mostly far from the 0.5
+##   decision threshold: under the null they lie well below it and under
+##   signal they are close to 1 (see the Score column of the S1-S3 tables),
+##   so Monte Carlo error of the PIP rarely decides a rejection and 20,000
+##   iterations are sufficient.
 ##
 ##   Real data (real_data_analysis.R). Every PIP is reported individually
 ##   for a named triplet and decides a discovery claim, and the observed
@@ -223,7 +223,11 @@ generate_data <- function(n             = 300,
                           conf_strength = 0.7,
                           pi_val        = 0.5,
                           seed          = NULL) {
-  if (!is.null(seed)) set.seed(seed)
+  # The generator is named so that a session left in L'Ecuyer-CMRG by
+  # simulation_misspecification.R cannot change the replicate data; in a
+  # fresh session Mersenne-Twister is already the default, so this is
+  # identical to set.seed(seed).
+  if (!is.null(seed)) set.seed(seed, kind = "Mersenne-Twister")
   
   G <- matrix(rnorm(n * pG), n, pG)  # sender cis-eQTL genotypes
   H <- matrix(rnorm(n * pH), n, pH)  # receiver cis-eQTL genotypes
@@ -688,26 +692,53 @@ run_simulation_grid <- function(sample_sizes  = c(500, 1000, 10000, 30000),
              OPENBLAS_NUM_THREADS = "1",
              MKL_NUM_THREADS      = "1")
 
+  # Each replicate is wrapped in tryCatch(), so that one failed fit is
+  # recorded as a row of NA results (with a message naming the job) instead
+  # of aborting the whole grid. Every replicate seeds itself, so a failure
+  # leaves the results of all other replicates unchanged.
   t0 <- Sys.time()
   res_list <- mclapply(seq_len(nrow(jobs)), function(k) {
-    run_one_replicate(
-      scenario_name = jobs$scenario[k],
-      n             = jobs$n[k],
-      seed          = jobs$seed[k],
-      pG            = pG,
-      pH            = pH,
-      pV            = pV,
-      conf_strength = conf_strength,
-      pi_val        = pi_val,
-      pip_thr       = pip_thr,
-      alpha_sig     = alpha_sig
-    )
+    tryCatch(
+      run_one_replicate(
+        scenario_name = jobs$scenario[k],
+        n             = jobs$n[k],
+        seed          = jobs$seed[k],
+        pG            = pG,
+        pH            = pH,
+        pV            = pV,
+        conf_strength = conf_strength,
+        pi_val        = pi_val,
+        pip_thr       = pip_thr,
+        alpha_sig     = alpha_sig
+      ),
+      error = function(e) {
+        message("Replicate failed (scenario ", jobs$scenario[k], ", n = ",
+                jobs$n[k], ", seed = ", jobs$seed[k], "): ",
+                conditionMessage(e))
+        pars <- scenario_list[[jobs$scenario[k]]]
+        # Design columns only; bind_rows() fills every result column with NA.
+        structure(
+          data.frame(
+            scenario     = jobs$scenario[k],
+            n            = jobs$n[k],
+            gamma_true   = as.integer((pars$beta_X != 0) ||
+                                        (pars$beta_XZ != 0)),
+            beta_X_true  = pars$beta_X,
+            beta_XZ_true = pars$beta_XZ
+          ),
+          failed = TRUE)
+      })
   }, mc.cores = mc_cores)
 
+  n_failed <- sum(vapply(res_list, function(r) isTRUE(attr(r, "failed")),
+                         logical(1)))
   out <- bind_rows(res_list)
   cat("Elapsed:",
       round(as.numeric(difftime(Sys.time(), t0, units = "mins")), 1),
       "minutes;", nrow(out), "of", nrow(jobs), "fits returned\n")
+  if (n_failed > 0L) {
+    cat("  ", n_failed, "replicate(s) failed and are recorded as NA rows\n")
+  }
   out
 }
 ############################################################
@@ -759,7 +790,7 @@ make_scenario_tables <- function(df_long) {
 ## therefore loads run_methods(), generate_data() and the rest without
 ## repeating the multi-hour S1-S3 run -- which is what
 ## simulation_misspecification.R needs when a session has to be restarted.
-## The default (flag absent or TRUE) runs the full study as before.
+## The default (flag absent or TRUE) runs the full study.
 ############################################################
 if (if (exists(".run_s1_s3")) isTRUE(.run_s1_s3) else TRUE) {
 
@@ -844,6 +875,11 @@ save_fig(p_betaXZ, "sim_betaXZ", 14, 9)
 
 cat("Figures written to Plots/ (sim_score.pdf, sim_betaX.pdf,",
     "sim_betaXZ.pdf)\n")
+
+## Package versions used for this run. The simulation has no reduced-run
+## override, so the file name carries no "smoke_" prefix.
+writeLines(utils::capture.output(sessionInfo()),
+           "Results/sessionInfo_simulation_mrccc.txt")
 
 } else {
   cat("S1-S3 run skipped (.run_s1_s3 = FALSE); functions and settings",

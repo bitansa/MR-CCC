@@ -58,7 +58,9 @@
 ##   leave_one_out_F_profile_<Cell1>_<Cell2>.csv
 ##                                    -- first-stage F under single drops
 ##   sensitivity_<Cell1>_<Cell2>.csv  -- primary vs disjoint run
+##   sessionInfo_instrument_overlap_sensitivity.txt
 ## The first three cover all twenty pairs; the rest the focal pair only.
+## Each name is prefixed "smoke_" when LD_R2_MAX is not the canonical 0.8.
 ##
 ## Run in a FRESH R session: the script reloads all data itself.
 ############################################################
@@ -189,6 +191,14 @@ LD_R2_MAX <- if (exists(".mrccc_ld_r2_max")) as.numeric(.mrccc_ld_r2_max) else 0
 stopifnot(is.numeric(LD_R2_MAX), LD_R2_MAX > 0, LD_R2_MAX <= 1)
 stopifnot(PRIMARY_K %in% K_GRID)
 
+# ---- Output names ----------------------------------------------------
+# A run at a clumping threshold other than the canonical 0.8 is a check, and
+# writes to names prefixed "smoke_", by the rule used in
+# real_data_analysis.R, so that it never overwrites a reported result. A
+# "smoke_" prefix already set in this session is honoured as well.
+.out_prefix <- if ((exists(".out_prefix") && identical(.out_prefix, "smoke_")) ||
+                   !isTRUE(all.equal(LD_R2_MAX, 0.8))) "smoke_" else ""
+
 # ---- Selection-variant sensitivity ---------------------------------
 # The primary analysis selects instruments from a +/-200 kb window with
 # NO significance threshold. Two alternative strategies are evaluated.
@@ -229,8 +239,11 @@ SELECTION_VARIANTS <- list(
   list(label = "wide_500kb",    window_bp = 500000, lead_p_max = NA_real_)
 )
 
-# Same seed as real_data_analysis.R and convergence_diagnostics.R, so
-# that every script shares one reproducible stream.
+# Fixed seed (the value used by the other scripts). Each script draws its own
+# stream; no stream is shared between scripts. donor.rda, loaded below,
+# contains a saved .Random.seed, which load() restores in the global
+# environment, so the draws made after loading (the Tier 2 sampler and AUCell
+# rankings) follow that saved state and are reproducible from it.
 set.seed(20260921)
 
 ############################################################
@@ -315,10 +328,16 @@ if (length(vcf.ref) != nrow(genotype)) {
        " ranges but `genotype` has ", nrow(genotype), " rows.")
 }
 
-# 3. expression matrices must describe the same donors
-.n_expr <- ncol(sapply(NK_Cells, colSums))
-if (.n_expr != nrow(donor)) {
-  stop("Donor mismatch: expression matrices have ", .n_expr,
+# 3. expression data must describe the same donors, for every cell type.
+# Each object is a list with one element per donor, so its length is the
+# donor count.
+.n_expr <- vapply(list(BCells = B_Cells, CD4Cells = CD4_Cells,
+                       CD8Cells = CD8_Cells, NKCells = NK_Cells,
+                       MonocytesCells = monocytes),
+                  length, integer(1))
+if (any(.n_expr != nrow(donor))) {
+  stop("Donor mismatch: the expression data have ",
+       paste(names(.n_expr), .n_expr, sep = " = ", collapse = ", "),
        " donors but `donor` has ", nrow(donor), " rows.\n",
        "  This usually means donor.rda and B_T_NK_monocytes.rda come ",
        "from different cohort subsets. Results would be silently wrong.")
@@ -335,11 +354,13 @@ if (.n_expr != nrow(donor)) {
 #
 # Identifiers are nevertheless compared where they exist, because a
 # mismatch is a useful hint that two files came from different cohort
-# subsets. This is reported, never fatal: in this dataset `genotype` uses
-# PLINK-style "FID_IID" column names, `donor` carries its identifier in an
-# `id` COLUMN (its row names are R's default 1..n), and the expression
-# matrices have no column names at all -- so a strict name comparison
-# would raise a false alarm.
+# subsets. In donor.rda the genotype column names are PLINK-style "FID_IID"
+# labels, `donor` carries its identifier in an `id` COLUMN (its row names
+# are R's default 1..n) in the same "FID_IID" form, and the expression
+# matrices have no donor names. The labels can therefore be compared
+# directly. When they are not identical, the IID (the text after the first
+# underscore, which assumes that the FID contains no underscore) is
+# compared position by position, and a mismatch there stops the run.
 .gn <- colnames(genotype)
 
 # Treat R's default row names ("1","2",...) as absent rather than as IDs.
@@ -358,11 +379,27 @@ if (!is.null(.gn) && !is.null(.did)) {
             "DIFFERENT ORDER. Because the pipeline aligns positionally, ",
             "reorder before proceeding:\n",
             "  genotype <- genotype[, match(as.character(donor$id), colnames(genotype))]")
+  } else if (all(grepl("^[^_]+_.+$", .gn))) {
+    # Genotype columns in FID_IID form: compare their IIDs with the donor
+    # identifiers, themselves reduced to an IID when they have the same form.
+    .iid_of <- function(x) sub("^[^_]+_", "", x)
+    .g_iid  <- .iid_of(.gn)
+    .d_iid  <- if (all(grepl("^[^_]+_.+$", .did))) .iid_of(.did) else .did
+    if (!identical(.g_iid, .d_iid)) {
+      .bad <- which(.g_iid != .d_iid)
+      stop("Donor mismatch: the IIDs parsed from the genotype column names ",
+           "differ from the donor identifiers at ", length(.bad),
+           " position(s), first at position ", .bad[1], " (\"", .gn[.bad[1]],
+           "\" vs \"", .did[.bad[1]], "\"). The pipeline aligns donors ",
+           "positionally, so the files must list the same donors in the ",
+           "same order.")
+    }
+    cat("  genotype IIDs (from FID_IID column names) match the donor ",
+        "identifiers position by position\n", sep = "")
   } else {
     cat("  NOTE: genotype column names and donor$id use different labelling\n",
         "        (e.g. \"", utils::head(.gn, 1), "\" vs \"",
-        utils::head(.did, 1), "\"). This is expected when genotype uses\n",
-        "        PLINK FID_IID names. Alignment is positional and donor\n",
+        utils::head(.did, 1), "\"). Alignment is positional and donor\n",
         "        counts agree, matching real_data_analysis.R.\n", sep = "")
   }
 } else {
@@ -472,7 +509,7 @@ prepare_pair <- function(Cell1, Cell2) {
     (lib.size1 > 0.25)
   donor.filter2 <- (lib.size2 <= median(lib.size2) + 3 * mad(lib.size2)) &
     (lib.size2 > 0.25)
-  donor.filter  <- (donor.filter1 * donor.filter2 != 0)
+  donor.filter  <- donor.filter1 & donor.filter2
 
   donor_p <- donor_raw[donor.filter, ]
   C1f <- RNA.count_Cell1[, donor.filter]
@@ -500,7 +537,12 @@ prepare_pair <- function(Cell1, Cell2) {
   V_p <- build_covariates(donor_p)
   if (anyNA(V_p)) stop("Missing donor covariates in pair ", Cell1, " -> ", Cell2)
 
-  list(donor = donor_p, V = V_p, gmat = gmat, vcf = vcf,
+  # SNP identifiers of the rows of gmat, from the row names of the character
+  # genotype matrix where present (NULL otherwise). Used as labels only.
+  snp_id <- if (is.null(rownames(genotype_raw))) NULL else
+    rownames(genotype_raw)[keep]
+
+  list(donor = donor_p, V = V_p, gmat = gmat, vcf = vcf, snp_id = snp_id,
        adj1 = adj1, adj2 = adj2, n = ncol(adj1))
 }
 
@@ -954,13 +996,17 @@ overlap_summary <- detail_all %>%
     pct_cross_bonf = round(100 * n_cross_any_bonf / n_triplets, 1)
   )
 
-write.csv(detail_all, "Results/overlap_detail_all_pairs.csv", row.names = FALSE)
-write.csv(overlap_summary, "Results/overlap_summary_all_pairs.csv",
+write.csv(detail_all,
+          paste0("Results/", .out_prefix, "overlap_detail_all_pairs.csv"),
+          row.names = FALSE)
+write.csv(overlap_summary,
+          paste0("Results/", .out_prefix, "overlap_summary_all_pairs.csv"),
           row.names = FALSE)
 
 cat("\n================ TIER 1 SUMMARY ================\n")
 print(as.data.frame(overlap_summary))
-cat("\nWritten to Results/overlap_summary_all_pairs.csv\n")
+cat("\nWritten to Results/", .out_prefix, "overlap_summary_all_pairs.csv\n",
+    sep = "")
 
 ############################################################
 ## SECTION 4b: INSTRUMENT-COUNT SENSITIVITY (k in K_GRID)
@@ -994,12 +1040,14 @@ k_sensitivity <- purrr::map_dfr(K_GRID, function(kk) {
   )
 })
 
-write.csv(k_sensitivity, "Results/instrument_count_sensitivity.csv",
+write.csv(k_sensitivity,
+          paste0("Results/", .out_prefix, "instrument_count_sensitivity.csv"),
           row.names = FALSE)
 
 cat("\n========= INSTRUMENT-COUNT SENSITIVITY =========\n")
 print(as.data.frame(k_sensitivity))
-cat("\nWritten to Results/instrument_count_sensitivity.csv\n")
+cat("\nWritten to Results/", .out_prefix, "instrument_count_sensitivity.csv\n",
+    sep = "")
 
 ############################################################
 ## SECTION 4c: SELECTION-VARIANT SENSITIVITY
@@ -1073,9 +1121,11 @@ variant_summary <- purrr::map_dfr(SELECTION_VARIANTS, function(v) {
 
 variant_detail_all <- dplyr::bind_rows(variant_detail)
 
-write.csv(variant_summary, "Results/selection_variant_summary.csv",
+write.csv(variant_summary,
+          paste0("Results/", .out_prefix, "selection_variant_summary.csv"),
           row.names = FALSE)
-write.csv(variant_detail_all, "Results/selection_variant_detail.csv",
+write.csv(variant_detail_all,
+          paste0("Results/", .out_prefix, "selection_variant_detail.csv"),
           row.names = FALSE)
 
 cat("\n========= SELECTION-VARIANT SENSITIVITY =========\n")
@@ -1115,7 +1165,8 @@ if (!is.null(.base) && nrow(.ref) > 0) {
       "sweep. Add it to TIER1_PAIRS.\n", sep = "")
 }
 
-cat("\nWritten to Results/selection_variant_summary.csv\n")
+cat("\nWritten to Results/", .out_prefix, "selection_variant_summary.csv\n",
+    sep = "")
 
 ############################################################
 ## SECTION 4e: LEAVE-ONE-INSTRUMENT-OUT FIRST-STAGE F PROFILE
@@ -1182,13 +1233,19 @@ loo_F_profile <- function(Cell1 = FOCAL_CELL1, Cell2 = FOCAL_CELL2) {
     # One row per dropped instrument. `side` names the block the instrument
     # belongs to; F_same is that block's F after the drop and is the column
     # that matters, while F_other is recorded unchanged so that a reader can
-    # confirm the drop touched only one first stage.
+    # confirm the drop touched only one first stage. `dropped` is the SNP
+    # identifier where the genotype matrix carries one, and otherwise the
+    # side prefix and the instrument's rank (L1, L2, ...; R1, R2, ...).
+    snp_lab <- function(idx, s, prefix) {
+      id <- if (is.null(P$snp_id)) NA_character_ else P$snp_id[idx[s]]
+      if (is.na(id) || !nzchar(id)) paste0(prefix, s) else id
+    }
     for (s in seq_along(primL)) {
       k <- k + 1
       rows[[k]] <- tibble(
         ligand = lr_l$ligand_symbol[i], receptor = lr_l$receptor_symbol[i],
         pathway = lr_l$pathway_name[i], side = "ligand",
-        dropped = paste0("L", s),
+        dropped = snp_lab(primL, s, "L"),
         F_same_full = F_L_full,
         F_same_drop = first_stage_F(primL[-s], lig, P$adj1, P),
         F_other     = F_R_full,
@@ -1199,7 +1256,7 @@ loo_F_profile <- function(Cell1 = FOCAL_CELL1, Cell2 = FOCAL_CELL2) {
       rows[[k]] <- tibble(
         ligand = lr_l$ligand_symbol[i], receptor = lr_l$receptor_symbol[i],
         pathway = lr_l$pathway_name[i], side = "receptor",
-        dropped = paste0("R", s),
+        dropped = snp_lab(primR, s, "R"),
         F_same_full = F_R_full,
         F_same_drop = first_stage_F(primR[-s], rec, P$adj2, P),
         F_other     = F_L_full,
@@ -1210,10 +1267,11 @@ loo_F_profile <- function(Cell1 = FOCAL_CELL1, Cell2 = FOCAL_CELL2) {
   out <- bind_rows(rows) %>%
     mutate(F_ratio = F_same_drop / F_same_full)
 
-  write.csv(out, paste0("Results/leave_one_out_F_profile_",
+  write.csv(out, paste0("Results/", .out_prefix, "leave_one_out_F_profile_",
                         Cell1, "_", Cell2, ".csv"), row.names = FALSE)
   cat("   ", nrow(out), "single-instrument drops profiled;",
-      "written to Results/leave_one_out_F_profile_", Cell1, "_", Cell2,
+      "written to Results/", .out_prefix, "leave_one_out_F_profile_",
+      Cell1, "_", Cell2,
       ".csv\n", sep = "")
 
   # The headline number: how far the first stage falls in the worst case for
@@ -1254,8 +1312,8 @@ loo_F <- loo_F_profile()
 ##   2. A long-range association of that kind is expected under chance at
 ##      this sample size: both instrument sets are screened against the
 ##      partner gene at a nominal 0.05, and across the screen the share of
-##      triplets with at least one hit is 37.7%, 52.3% and 64.2% at k = 5,
-##      10 and 20 (Results/instrument_count_sensitivity.csv). It is
+##      triplets with at least one hit rises with the number of instruments
+##      k (column pct_cross of Results/instrument_count_sensitivity.csv). It is
 ##      ALSO the signature of a real ligand-to-receptor effect: the
 ##      outcome model conditions on receptor expression, so a ligand
 ##      instrument that acts on the receptor THROUGH the ligand is
@@ -1290,7 +1348,7 @@ if (RUN_TIER2) {
   }
   library(AUCell); library(UCell); library(GSVA)
 
-  # GSVA changed its interface at version 1.52 (Bioconductor 3.18): the old
+  # GSVA changed its interface at GSVA 1.50 (Bioconductor 3.18): the old
   # gsva(expr=, gset.idx.list=, method=) signature was replaced by parameter
   # objects. This wrapper supports both so the script runs on either
   # installation. KEEP IN SYNC with the copy in real_data_analysis.R.
@@ -1370,6 +1428,8 @@ if (RUN_TIER2) {
                    UCell = Y_UCell, ssGSEA = Y_ssGSEA, GSVA = Y_GSVA)
     cors   <- sapply(Y_list, function(y) cor(y, X, use = "complete.obs"))
     Y      <- matrix(Y_list[[names(which.max(abs(cors)))]], ncol = 1)
+    # Recorded so that it can be compared with the primary analysis below.
+    rep_t2 <- names(which.max(abs(cors)))
 
     sd_X <- sd(as.numeric(X)); sd_Z <- sd(as.numeric(Z)); sd_Y <- sd(as.numeric(Y))
     X_c <- matrix(as.numeric(X) - mean(X), ncol = 1)
@@ -1407,7 +1467,8 @@ if (RUN_TIER2) {
         n_dropped_L = n_dropL, n_dropped_R = n_dropR,
         F_L_new = NA_real_, F_R_new = NA_real_,
         Beta_X_new = NA_real_, Beta_XZ_new = NA_real_, PIP_new = NA_real_,
-        status = "no_instruments_left"
+        status = "no_instruments_left",
+        representation = rep_t2
       )
       next
     }
@@ -1470,7 +1531,8 @@ if (RUN_TIER2) {
       Beta_XZ_new = mean(bXZ_dr) * sd_X * sd_Z / sd_Y,
       PIP_new     = mean(g_dr),
       n_chains    = N_CHAINS_T2,
-      status      = "ok"
+      status      = "ok",
+      representation = rep_t2
     )
   }
 
@@ -1479,11 +1541,49 @@ if (RUN_TIER2) {
   # ---- Compare against the primary analysis ----
   primary_file <- paste0("Results/", Cell1, "_", Cell2, "_MR_CCC.rds")
   if (file.exists(primary_file)) {
-    primary <- readRDS(primary_file) %>%
+    primary_raw <- readRDS(primary_file)
+    primary <- primary_raw %>%
       transmute(ligand = ligand_col_name, receptor = receptor_col_name,
                 pathway = pathway_name,
                 Beta_X_old = Beta_X_mean, Beta_XZ_old = Beta_XZ_mean,
                 PIP_old = gamma_mean)
+
+    # The join is keyed on gene symbols and pathway. A key that occurs more
+    # than once on either side would duplicate rows, so it is reported
+    # instead of joined.
+    .key_dups <- function(d) {
+      key <- c("ligand", "receptor", "pathway")
+      if (!all(key %in% names(d))) return(0L)
+      sum(duplicated(as.data.frame(d)[, key, drop = FALSE]))
+    }
+    if (.key_dups(primary) > 0L || .key_dups(sens) > 0L) {
+      stop("The (ligand, receptor, pathway) key is not unique (",
+           .key_dups(primary), " repeated key(s) in the primary results, ",
+           .key_dups(sens), " in the Tier 2 results); the comparison would ",
+           "duplicate rows.", call. = FALSE)
+    }
+
+    # The adaptive representation is re-evaluated here. A choice that
+    # differs from the primary analysis means a different outcome variable,
+    # and is reported; the comparison proceeds.
+    if ("representation" %in% names(primary_raw) &&
+        "representation" %in% names(sens)) {
+      .rep_cmp <- primary_raw %>%
+        transmute(ligand = ligand_col_name, receptor = receptor_col_name,
+                  pathway = pathway_name,
+                  rep_old = as.character(representation)) %>%
+        inner_join(sens %>% dplyr::select(ligand, receptor, pathway,
+                                          rep_new = representation),
+                   by = c("ligand", "receptor", "pathway")) %>%
+        filter(rep_old != rep_new)
+      if (nrow(.rep_cmp) > 0L) {
+        warning(nrow(.rep_cmp), " triplet(s) use a different pathway ",
+                "representation in Tier 2 than in the primary analysis, e.g. ",
+                .rep_cmp$ligand[1], "-", .rep_cmp$receptor[1], ": '",
+                .rep_cmp$rep_new[1], "' vs '", .rep_cmp$rep_old[1], "'.",
+                call. = FALSE)
+      }
+    }
 
     sens <- primary %>%
       left_join(sens, by = c("ligand", "receptor", "pathway")) %>%
@@ -1514,9 +1614,11 @@ if (RUN_TIER2) {
   }
 
   write.csv(sens,
-            paste0("Results/sensitivity_", Cell1, "_", Cell2, ".csv"),
+            paste0("Results/", .out_prefix, "sensitivity_", Cell1, "_", Cell2,
+                   ".csv"),
             row.names = FALSE)
-  cat("\nWritten to Results/sensitivity_", Cell1, "_", Cell2, ".csv\n", sep = "")
+  cat("\nWritten to Results/", .out_prefix, "sensitivity_", Cell1, "_", Cell2,
+      ".csv\n", sep = "")
 }
 
 ############################################################
@@ -1531,3 +1633,8 @@ if (RUN_TIER2) {
 ## discovery that weakens while F collapses is inconclusive
 ## rather than refuted.
 ############################################################
+
+## Package versions used for this run.
+writeLines(utils::capture.output(sessionInfo()),
+           paste0("Results/", .out_prefix,
+                  "sessionInfo_instrument_overlap_sensitivity.txt"))

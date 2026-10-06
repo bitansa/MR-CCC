@@ -50,6 +50,8 @@
 ##                                                    by regenerate_figures.R)
 ##   Results/convergence_diagnostics_<Cell1>_<Cell2>.csv
 ##   Results/runtime_benchmark.csv
+##   Results/sessionInfo_convergence_diagnostics.txt
+## Each name is prefixed "smoke_" when the primary run was a check.
 ############################################################
 library(dplyr)
 library(tidyr)
@@ -70,6 +72,19 @@ if (length(.missing) > 0) {
   stop("Objects missing -- source real_data_analysis.R first.\n  Missing: ",
        paste(.missing, collapse = ", "))
 }
+
+## ---- Output names ---------------------------------------------------------
+## A session whose primary run was a check (shortened chains, a truncated
+## triplet universe or a non-canonical clumping threshold) writes to names
+## prefixed "smoke_", by the rule used in real_data_analysis.R, so that a
+## check never overwrites a reported result. The prefix set by the primary
+## script is reused; the rule is re-evaluated on the inherited settings.
+.out_prefix <- if ((exists(".out_prefix") && identical(.out_prefix, "smoke_")) ||
+                   isTRUE(get0(".mrccc_truncated", ifnotfound = FALSE)) ||
+                   N_ITER != 100000L ||
+                   !isTRUE(all.equal(get0("LD_R2_MAX", ifnotfound = 0.8), 0.8))) {
+  "smoke_"
+} else ""
 
 ############################################################
 ## USER SETTINGS
@@ -160,7 +175,7 @@ pick_triplets <- function(out, n_each = 1L) {
   # Spanning set: strongest, closest to the threshold, weakest.
   idx_span <- unique(c(
     head(seq_len(nrow(o)), n_each),
-    which.min(abs(o$gamma_mean - pip_thresh))[seq_len(n_each)],
+    order(abs(o$gamma_mean - pip_thresh))[seq_len(n_each)],
     tail(seq_len(nrow(o)), n_each)
   ))
 
@@ -213,11 +228,11 @@ gelman_rubin <- function(chains) {
 ## being diagnosed are the chains actually used for inference.
 ##
 ## The assembly logic lives in build_triplet_inputs.R and is SHARED with the
-## other post-hoc refit scripts. A single shared definition guarantees that
-## all six pathway representations are offered to the adaptive rule, so any
-## triplet where AUCell or UCell wins the correlation contest is diagnosed
-## on the same outcome variable as the primary analysis. One definition, one
-## place.
+## other post-hoc refit scripts. A single shared definition ensures that all
+## six pathway representations are offered to the adaptive rule, as in the
+## primary analysis, and the representation chosen is checked against the
+## one recorded in Output_MR_CCC, with a warning if they differ. One
+## definition, one place.
 source("Github Codes/build_triplet_inputs.R")
 
 build_inputs <- function(lig_sym, rec_sym, pth) {
@@ -327,10 +342,12 @@ attr(trace_tab, "burn_in")  <- BURN_IN
 
 dir.create("Results", showWarnings = FALSE)
 write.csv(diag_tab,
-          paste0("Results/convergence_diagnostics_", Cell1, "_", Cell2, ".csv"),
+          paste0("Results/", .out_prefix, "convergence_diagnostics_",
+                 Cell1, "_", Cell2, ".csv"),
           row.names = FALSE)
 saveRDS(trace_tab,
-        paste0("Results/convergence_trace_", Cell1, "_", Cell2, ".rds"))
+        paste0("Results/", .out_prefix, "convergence_trace_",
+               Cell1, "_", Cell2, ".rds"))
 
 cat("\n---- Convergence diagnostics ----\n")
 print(as.data.frame(diag_tab %>% mutate(across(where(is.numeric), ~round(.x, 4)))))
@@ -345,7 +362,8 @@ print(as.data.frame(diag_tab %>% mutate(across(where(is.numeric), ~round(.x, 4))
 ## breaks, in thousands) come from figure_style.R.
 ############################################################
 p_trace <- plot_trace(trace_tab)
-save_fig(p_trace, paste0("convergence_trace_", Cell1, "_", Cell2), 14, 12)
+save_fig(p_trace, paste0(.out_prefix, "convergence_trace_", Cell1, "_", Cell2),
+         14, 12)
 
 ############################################################
 ## PART 2: RUNTIME BENCHMARK AND COMPLEXITY
@@ -371,9 +389,15 @@ bench <- lapply(bench_n, function(nn) {
          seconds_per_100k_iter = tt * 50)
 })
 bench_tab <- bind_rows(bench)
-write.csv(bench_tab, "Results/runtime_benchmark.csv", row.names = FALSE)
+write.csv(bench_tab, paste0("Results/", .out_prefix, "runtime_benchmark.csv"),
+          row.names = FALSE)
 
 cat("\n---- Runtime benchmark (single triplet) ----\n")
 print(as.data.frame(bench_tab %>% mutate(across(where(is.numeric), ~round(.x, 2)))))
 cat("\nCost is linear in n and in the number of iterations; triplets are\n",
     "independent, so genome-scale screens parallelise across cores.\n", sep = "")
+
+## Package versions used for this run.
+writeLines(utils::capture.output(sessionInfo()),
+           paste0("Results/", .out_prefix,
+                  "sessionInfo_convergence_diagnostics.txt"))

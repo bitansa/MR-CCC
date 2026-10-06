@@ -17,7 +17,9 @@
 ##                              for five cell types (genes x donors)
 ##     donor.rda             -- donor metadata, SNP genotype matrix,
 ##                              and GRanges objects for SNP/gene coords
-##   Save both files to a local folder and set DATA_DIR below.
+##   Save both files to one local folder and set the environment
+##   variable MRCCC_DATA_DIR to that folder (default ~/data/mrccc);
+##   DATA_DIR below is read from it.
 ##
 ## OUTPUT:
 ##   Output_MR_CCC   -- one row per triplet, columns:
@@ -130,8 +132,16 @@ cat("\n=== Ordered pair:", Cell1, "->", Cell2, "===\n")
 ## reproducible. Without one, posterior inclusion probabilities differ between
 ## runs by an amount governed by the Monte Carlo error of the gamma chain,
 ## which can be large enough to move a triplet across the discovery threshold.
+##
+## The generator is named explicitly so that a session left in another
+## generator (simulation_misspecification.R selects L'Ecuyer-CMRG) cannot
+## change the stream; Mersenne-Twister is R's default, so in a fresh session
+## this is identical to set.seed(SEED). Note that donor.rda, loaded below,
+## contains a saved .Random.seed (Mersenne-Twister), which load() restores in
+## the global environment. The draws made after loading therefore follow that
+## saved state, which is equally fixed, so every run remains reproducible.
 SEED <- 20260921
-set.seed(SEED)
+set.seed(SEED, kind = "Mersenne-Twister")
 
 ## ---- Memory ---------------------------------------------------------------
 ## This analysis holds a genes x donors expression matrix per cell type and a
@@ -205,11 +215,10 @@ if (length(ls(envir = .GlobalEnv)) > 50L) {
 ## the 0.5 threshold, so Monte Carlo error propagates directly into the
 ## reported result. In the simulation nothing is reported per replicate:
 ## operating characteristics are averaged over 100 replicates, and the
-## simulated PIPs sit far from the threshold (near 0 under the null, near 1
-## under signal), five or more Monte Carlo standard errors away, so chain
-## noise essentially never flips a decision. This script reports the MCSE of
-## every PIP; the S1-S3 simulation output does not store it, while the S4-S7
-## output does.
+## simulated PIPs mostly sit far from the threshold (well below it under the
+## null, near 1 under signal), so chain noise rarely decides a rejection.
+## This script reports the MCSE of every PIP; the S1-S3 simulation output
+## does not store it, while the S4-S7 output does.
 ##
 ## The misspecification study (S4-S7) is the exception among the
 ## simulations: there the departures from the assumed model pull the
@@ -311,9 +320,9 @@ BAND_DRAWS <- 2000L
 ## probability model is a standard, citable default, not because it is the
 ## more permissive of the two. Bayesian FDR is computed for every triplet and
 ## reported alongside, so the error rate incurred by the primary rule is
-## stated explicitly rather than left implicit. This is the honest ordering:
-## report a principled rule, then disclose its error rate, then show the
-## FDR-controlled subsets as a nested hierarchy of confidence.
+## stated explicitly rather than left implicit. The order of reporting is:
+## a principled rule, then its error rate, then the FDR-controlled subsets as
+## a nested hierarchy of confidence.
 ##
 ## Switching DISCOVERY_RULE to "bfdr" is legitimate but markedly more
 ## stringent at these PIP levels, and will retain far fewer triplets.
@@ -386,11 +395,12 @@ load(file.path(DATA_DIR, "donor.rda"))
 ############################################################
 ## SECTION 1: AGGREGATE CELL-LEVEL COUNTS TO DONOR LEVEL
 ##
-## Each object (B_Cells, CD4_Cells, etc.) is a list of
-## per-donor matrices (genes x cells). colSums aggregates
-## across cells to give total read counts per gene per donor.
-## Monocytes uses a helper because its list elements may
-## have varying structure.
+## Each object (B_Cells, CD4_Cells, etc.) is a list with one
+## element per donor: a cells x genes count matrix. colSums
+## sums over cells (rows) to give total read counts per gene,
+## and sapply() binds the per-donor vectors as columns, giving
+## a genes x donors matrix. Monocytes uses a helper because
+## its list elements may have varying structure.
 ############################################################
 RNA.count_BCells   <- sapply(B_Cells,   colSums)
 RNA.count_CD4Cells <- sapply(CD4_Cells, colSums)
@@ -408,7 +418,7 @@ get_gene_counts <- function(x) {
 RNA.count_MonocytesCells <- sapply(monocytes, get_gene_counts)
 
 # The raw per-cell lists are the largest objects in the session (they hold one
-# genes x cells matrix per donor) and nothing downstream uses them once the
+# cells x genes matrix per donor) and nothing downstream uses them once the
 # donor-level matrices exist. Releasing them here frees several gigabytes and
 # is what allows the analysis to run alongside the genotype matrices without
 # exhausting the vector memory limit.
@@ -451,7 +461,7 @@ donor.filter1 <- (lib.size1 <= median(lib.size1) + 3 * mad(lib.size1)) &
   (lib.size1 > 0.25)
 donor.filter2 <- (lib.size2 <= median(lib.size2) + 3 * mad(lib.size2)) &
   (lib.size2 > 0.25)
-donor.filter  <- (donor.filter1 * donor.filter2 != 0)
+donor.filter  <- donor.filter1 & donor.filter2
 
 # Apply filter to all donor-level objects
 donor      <- donor[donor.filter, ]
@@ -657,7 +667,15 @@ get_SNP_matrix <- function(gene_id, RNA_mat_adj, min_snps = 5) {
   ranked    <- snp.ind[ok[order(snp.pval[ok])]]
   best_snps <- clump_by_ld(ranked, genotype.mat, keep_max = 10L,
                            r2_max = LD_R2_MAX)
-  t(genotype.mat[best_snps, , drop = FALSE])  # n x k (donors x SNPs)
+  out <- t(genotype.mat[best_snps, , drop = FALSE])  # n x k (donors x SNPs)
+  # SNP identifiers as column names, taken from the row names of the
+  # character genotype matrix, whose rows match genotype.mat. They serve as
+  # labels only (for example in leave_one_instrument_out.R); no computation
+  # uses them.
+  if (exists("genotype") && length(rownames(genotype)) == nrow(genotype.mat)) {
+    colnames(out) <- rownames(genotype)[best_snps]
+  }
+  out
 }
 
 # ---- Orientation of the PC1 pathway score -----------------------------------
@@ -674,7 +692,7 @@ orient_pc1 <- function(pc, ref) {
 }
 
 # ---- GSVA / ssGSEA scores, tolerant of both package APIs -------------------
-# GSVA changed its interface at version 1.52 (Bioconductor 3.18). The former
+# GSVA changed its interface at GSVA 1.50 (Bioconductor 3.18). The former
 # call
 #     gsva(expr = ., gset.idx.list = ., method = "gsva"|"ssgsea", ...)
 # was replaced by parameter objects
@@ -683,9 +701,10 @@ orient_pc1 <- function(pc, ref) {
 # and the old signature now fails with
 #     "unable to find an inherited method for function 'gsva'".
 #
-# Both forms are supported here so that the code runs unchanged on older and
-# newer installations. Note that `abs.ranking` applied only to the
-# "gsva" method in the legacy interface and was silently ignored for ssGSEA;
+# Both forms are supported here so that the code runs unchanged with GSVA
+# releases on either side of that change. Note that `abs.ranking` applied
+# only to the "gsva" method in the legacy interface and was silently ignored
+# for ssGSEA;
 # the new interface names it `absRanking` and it is left at its default.
 #
 # KEEP IN SYNC with the copy in instrument_overlap_sensitivity.R, which
@@ -855,6 +874,18 @@ bfdr_threshold_set <- function(pip, alpha) {
 Output_list <- vector("list", nrow(lr_filtered))
 out_idx     <- 0
 
+# Triplets that cannot be built are skipped. The reasons are counted so that
+# a one-line summary can be reported for the pair after the loop; counting
+# does not change which triplets are kept.
+#   empty_keyword       the CellPhoneDB classification yields no keyword
+#   no_reactome_match   no Reactome gene-set name matches the keyword
+#   no_pathway_genes    matching sets, but none of their genes is expressed
+#   no_expression       ligand or receptor absent from the expression data
+#   no_instruments      no qualifying cis-SNP for the ligand or receptor
+.skip_counts <- c(empty_keyword = 0L, no_reactome_match = 0L,
+                  no_pathway_genes = 0L, no_expression = 0L,
+                  no_instruments = 0L)
+
 for (run in seq_len(nrow(lr_filtered))) {
   
   # Progress. The sampler itself is silent (verbose = FALSE below), because a
@@ -882,22 +913,32 @@ for (run in seq_len(nrow(lr_filtered))) {
   # genes in MSigDB Reactome (key_cols).
   keyword          <- sub(".*by\\s+", "", pathway_name)
   # An empty keyword would turn the regex below into "", which matches EVERY
-  # gene set and would silently build Y from the whole transcriptome. Skip
-  # such rows here, exactly as convergence_diagnostics.R and
-  # pathway_representation_sensitivity.R already do, so that every triplet
-  # the primary emits can be reproduced by those scripts.
-  if (!nzchar(keyword)) next
+  # gene set and would silently build Y from the whole transcriptome. Such
+  # rows are skipped here, as they are in build_triplet_inputs.R and
+  # pathway_representation_sensitivity.R, so that every triplet the primary
+  # analysis emits can be reproduced by the refit scripts.
+  if (!nzchar(keyword)) {
+    .skip_counts["empty_keyword"] <- .skip_counts["empty_keyword"] + 1L
+    next
+  }
   hits             <- key_cols %>%
     dplyr::filter(str_detect(gs_name, regex(keyword, ignore_case = TRUE)))
   pathway_gene_ids <- unique(hits$ensembl_gene)
   pathway_gene_ids <- pathway_gene_ids[
     pathway_gene_ids %in% rownames(RNA.count.adj_Cell2)
   ]
-  if (length(pathway_gene_ids) == 0) next
-  
+  if (length(pathway_gene_ids) == 0) {
+    .reason <- if (nrow(hits) == 0L) "no_reactome_match" else "no_pathway_genes"
+    .skip_counts[.reason] <- .skip_counts[.reason] + 1L
+    next
+  }
+
   # ---- Step 2: X and Z (ligand and receptor expression) ----
-  if (!ligand_gene_id   %in% rownames(RNA.count.adj_Cell1)) next
-  if (!receptor_gene_id %in% rownames(RNA.count.adj_Cell2)) next
+  if (!ligand_gene_id   %in% rownames(RNA.count.adj_Cell1) ||
+      !receptor_gene_id %in% rownames(RNA.count.adj_Cell2)) {
+    .skip_counts["no_expression"] <- .skip_counts["no_expression"] + 1L
+    next
+  }
   
   X <- matrix(RNA.count.adj_Cell1[ligand_gene_id,   ], ncol = 1)
   Z <- matrix(RNA.count.adj_Cell2[receptor_gene_id, ], ncol = 1)
@@ -989,9 +1030,15 @@ for (run in seq_len(nrow(lr_filtered))) {
   # get_SNP_matrix() returns raw dosages, which are what the clumping and the
   # F statistic use; the sampler receives the centred columns.
   G_raw <- get_SNP_matrix(ligand_gene_id,   RNA.count.adj_Cell1, min_snps = 1)
-  if (is.null(G_raw)) next
+  if (is.null(G_raw)) {
+    .skip_counts["no_instruments"] <- .skip_counts["no_instruments"] + 1L
+    next
+  }
   H_raw <- get_SNP_matrix(receptor_gene_id, RNA.count.adj_Cell2, min_snps = 1)
-  if (is.null(H_raw)) next
+  if (is.null(H_raw)) {
+    .skip_counts["no_instruments"] <- .skip_counts["no_instruments"] + 1L
+    next
+  }
   G <- centre_cols(G_raw)
   H <- centre_cols(H_raw)
 
@@ -1163,6 +1210,10 @@ for (run in seq_len(nrow(lr_filtered))) {
     ligand_col_name   = ligand_gene_name,
     receptor_col_name = receptor_gene_name,
     pathway_name      = pathway_name,
+    # Ensembl identifiers of the ligand and receptor genes, recorded so that a
+    # triplet can be matched unambiguously outside this loop. Labels only.
+    ligand_ensembl    = ligand_gene_id,
+    receptor_ensembl  = receptor_gene_id,
     # Adaptive pathway representation
     representation    = best_name,
     representation_cor     = best_cor,
@@ -1207,6 +1258,9 @@ for (run in seq_len(nrow(lr_filtered))) {
 Output_MR_CCC <- dplyr::bind_rows(Output_list[seq_len(out_idx)])
 
 cat("\nDone.", out_idx, "triplets analysed.\n")
+message("Triplets skipped for ", Cell1, " -> ", Cell2, ": ",
+        paste(names(.skip_counts), .skip_counts, sep = " = ", collapse = ", "),
+        " (", sum(.skip_counts), " of ", nrow(lr_filtered), ").")
 
 ############################################################
 ## SECTION 6a: ERROR-RATE CONTROL AND DIAGNOSTIC SUMMARY
@@ -1270,8 +1324,8 @@ n_trip <- nrow(Output_MR_CCC)
 # above ensure. R-hat is reported for beta_X, beta_XZ, gamma and the joint
 # log-likelihood, with the largest of the four as the headline.
 #
-# 1.01 is used as the threshold rather than the older 1.1, following the
-# recommendation that 1.1 is too permissive for the precision that modern
+# 1.01 is used as the threshold rather than the conventional 1.1, following
+# the recommendation that 1.1 is too permissive for the precision that modern
 # chain lengths afford.
 if (N_CHAINS > 1 && any(is.finite(Output_MR_CCC$rhat_max))) {
   cat("  Gelman-Rubin R-hat : max over all triplets and parameters",
@@ -1428,3 +1482,9 @@ save_fig(p2, paste0(.out_prefix, "Supp_", Cell1, "_", Cell2, "_pip_ranking"), 14
 save_fig(p3, paste0(.out_prefix, "Supp_", Cell1, "_", Cell2, "_curves"),      14, 9)
 
 cat("Plots saved to Plots/ directory.\n")
+
+## Package versions used for this run, written beside the results. The
+## CellPhoneDB release and the msigdbr version should be recorded with them
+## (see README.md).
+writeLines(utils::capture.output(sessionInfo()),
+           paste0("Results/", .out_prefix, "sessionInfo_real_data_analysis.txt"))

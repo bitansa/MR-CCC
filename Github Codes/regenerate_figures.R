@@ -107,7 +107,8 @@ if (length(rds_files) == 0L) {
       p3 <- plot_effect_curves(out, pair_label, pip_thresh)
 
       # The caption names the pair and explains the encoding, so the in-plot
-      # title is dropped to give the 42 rows the height they need.
+      # title is dropped to give the rows (one per triplet) the height they
+      # need.
       save_fig(p1 + labs(title = NULL, subtitle = NULL),
                paste0("Supp_", Cell1, "_", Cell2, "_bubble"),      12, 16)
       save_fig(p2, paste0("Supp_", Cell1, "_", Cell2, "_pip_ranking"), 14, 13)

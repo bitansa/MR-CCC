@@ -18,8 +18,10 @@
 ##   key_cols   -- full MSigDB Reactome gene-set table
 ##
 ## USAGE:
-##   Set DATA_DIR to the folder containing your CellPhoneDB
-##   input files, then source this script.
+##   Set the environment variable CELLPHONEDB_DIR to the
+##   folder containing the CellPhoneDB input files (default
+##   ~/data/cellphonedb), then source this script. DATA_DIR
+##   below is read from that variable.
 ############################################################
 library(dplyr)
 library(stringr)
@@ -42,7 +44,8 @@ library(msigdbr)
 #   gene_input.csv
 #   transcription_factor_input.csv   (optional; read if present, not used)
 #
-# Save all five to a single local folder, then set DATA_DIR below.
+# Save all five to a single local folder and point CELLPHONEDB_DIR at it, as
+# described below.
 
 # The default assumes ~/data/cellphonedb. To point at a different local
 # copy without editing this file (and therefore without any risk of
@@ -124,7 +127,9 @@ ligrec_clean <- ligrec_raw %>%
 # The `interactors` column encodes gene symbols as
 # "GeneA-GeneB" (simple pairs) or "GeneA+GeneB-GeneC+GeneD"
 # (multi-subunit complexes, separated by +).
-# Fall back to protein names if `interactors` is absent.
+# A record whose `interactors` value is missing or contains no hyphen falls
+# back to "<ligand protein name>-<receptor protein name>". The column itself
+# must be present in interaction_input.csv (it is in CellPhoneDB v5).
 #
 # THE HYPHEN IS AMBIGUOUS. It separates the ligand side from the receptor
 # side, but it also occurs INSIDE some HGNC symbols: HLA-A, HLA-E, MT-RNR2,

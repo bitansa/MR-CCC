@@ -30,10 +30,11 @@
 ## not "several mildly invalid SNPs". Simulation scenario S6
 ## addresses the latter.
 ##
-## Note on weak instruments. With first-stage F around 1.5,
-## the analysis measures how much each PIP depends on any
-## single instrument. Its results should be read alongside
-## the F values, not as evidence of instrument strength.
+## Note on weak instruments. With weak first-stage
+## instruments (see F_L and F_R in the primary output), the
+## analysis measures how much each PIP depends on any single
+## instrument. Its results should be read alongside the F
+## values, not as evidence of instrument strength.
 ##
 ## PREREQUISITES (run in this order, from the project root):
 ##   Rcpp::sourceCpp("Github Codes/mr_ccc_gibbs.cpp")
@@ -51,6 +52,11 @@
 ## OUTPUT (written to Results/):
 ##   leave_one_out_summary_<Cell1>_<Cell2>.csv   one row per discovery
 ##   leave_one_out_detail_<Cell1>_<Cell2>.csv    one row per drop
+##   sessionInfo_leave_one_instrument_out.txt
+## Each name is prefixed "smoke_" when the primary run was a check.
+## Dropped instruments are labelled by SNP identifier where the
+## genotype matrix carries one, and as L1, L2, ... (ligand) or
+## R1, R2, ... (receptor) otherwise.
 ############################################################
 
 suppressPackageStartupMessages({
@@ -63,8 +69,8 @@ suppressPackageStartupMessages({
              "get_SNP_matrix", "gsva_scores", "mr_ccc_gibbs",
              "N_ITER", "BURN_IN", "THIN", "N_CHAINS", "INIT_SCALE",
              "pip_thresh", "Cell1", "Cell2",
-             # Instrument selection is LD-clumped; a session holding an
-             # older get_SNP_matrix() lacks these and must re-source.
+             # Instrument selection is LD-clumped; both objects are defined
+             # by real_data_analysis.R alongside get_SNP_matrix().
              "LD_R2_MAX", "clump_by_ld")
 .missing <- .needed[!vapply(.needed, exists, logical(1))]
 if (length(.missing) > 0) {
@@ -74,10 +80,31 @@ if (length(.missing) > 0) {
 
 source("Github Codes/build_triplet_inputs.R")
 
-## Null-coalescing helper: instrument matrices from get_SNP_matrix() may or
-## may not carry SNP identifiers as column names. Must be defined BEFORE the
-## loop that uses it.
-`%||%` <- function(a, b) if (is.null(a)) b else a
+## ---- Reproducibility --------------------------------------------------------
+## Each chain is seeded separately, as in convergence_diagnostics.R. Every
+## refit therefore uses the same per-chain streams, so the full-set fit and
+## the single-drop fits of a triplet differ only in the instrument set.
+SEED_LOO <- 20260921
+set.seed(SEED_LOO, kind = "Mersenne-Twister")
+
+## ---- Output names ---------------------------------------------------------
+## Prefixed "smoke_" when the primary run in this session was a check, by the
+## rule used in real_data_analysis.R, so that a check never overwrites a
+## reported result.
+.out_prefix <- if ((exists(".out_prefix") && identical(.out_prefix, "smoke_")) ||
+                   isTRUE(get0(".mrccc_truncated", ifnotfound = FALSE)) ||
+                   N_ITER != 100000L ||
+                   !isTRUE(all.equal(LD_R2_MAX, 0.8))) {
+  "smoke_"
+} else ""
+
+## Label of instrument j of matrix M: its SNP identifier when get_SNP_matrix()
+## supplied one as a column name, otherwise the side prefix and position.
+## Labels do not affect which instrument is dropped.
+snp_label <- function(M, j, prefix) {
+  id <- colnames(M)[j]
+  if (is.null(id) || is.na(id) || !nzchar(id)) paste0(prefix, j) else id
+}
 
 ## Which triplets to test. Default: the declared discoveries.
 TARGETS <- Output_MR_CCC %>%
@@ -89,6 +116,7 @@ TARGETS <- Output_MR_CCC %>%
 fit_pip <- function(inp, G, H) {
   n <- nrow(inp$X); g_scale <- min(n, 100.0)
   fits <- lapply(seq_len(N_CHAINS), function(cc) {
+    set.seed(SEED_LOO + 1000L * cc)
     mr_ccc_gibbs(
       inp$X, inp$Z, inp$Y, G, H, inp$V,
       n_iter = N_ITER, burn_in = BURN_IN, thin = THIN,
@@ -139,7 +167,7 @@ for (i in seq_len(nrow(TARGETS))) {
       drops[[length(drops) + 1L]] <- tibble(
         ligand = TARGETS$ligand_col_name[i],
         receptor = TARGETS$receptor_col_name[i],
-        side = "ligand", dropped = colnames(G)[j] %||% paste0("L", j),
+        side = "ligand", dropped = snp_label(G, j, "L"),
         PIP = p)
     }
   }
@@ -149,11 +177,15 @@ for (i in seq_len(nrow(TARGETS))) {
       drops[[length(drops) + 1L]] <- tibble(
         ligand = TARGETS$ligand_col_name[i],
         receptor = TARGETS$receptor_col_name[i],
-        side = "receptor", dropped = colnames(H)[j] %||% paste0("R", j),
+        side = "receptor", dropped = snp_label(H, j, "R"),
         PIP = p)
     }
   }
-  dd <- bind_rows(drops)
+  # With a single instrument on both sides no drop is possible. An empty
+  # table with the expected columns keeps the summary below well defined.
+  dd <- if (length(drops)) bind_rows(drops) else
+    tibble(ligand = character(0), receptor = character(0),
+           side = character(0), dropped = character(0), PIP = numeric(0))
   detail_rows[[i]] <- dd
 
   minL <- dd %>% filter(side == "ligand")   %>% slice_min(PIP, n = 1, with_ties = FALSE)
@@ -174,20 +206,27 @@ for (i in seq_len(nrow(TARGETS))) {
     PIP_max_any     = if (nrow(dd)) max(dd$PIP) else NA_real_,
     n_drops         = nrow(dd),
     n_drops_below   = sum(dd$PIP < pip_thresh),
-    robust_to_any_single_drop = all(dd$PIP > pip_thresh)
+    # Undefined (NA) when no single drop was possible.
+    robust_to_any_single_drop = if (nrow(dd)) all(dd$PIP > pip_thresh) else NA
   )
 
-  cat("      min PIP over drops:", round(min(dd$PIP), 3),
-      " | drops below", pip_thresh, ":", sum(dd$PIP < pip_thresh),
-      "of", nrow(dd), "\n")
+  if (nrow(dd)) {
+    cat("      min PIP over drops:", round(min(dd$PIP), 3),
+        " | drops below", pip_thresh, ":", sum(dd$PIP < pip_thresh),
+        "of", nrow(dd), "\n")
+  } else {
+    cat("      no single-instrument drop possible (one instrument per side)\n")
+  }
 }
 
 loo_summary <- bind_rows(summary_rows[!vapply(summary_rows, is.null, logical(1))])
 loo_detail  <- bind_rows(detail_rows[!vapply(detail_rows, is.null, logical(1))])
 
 dir.create("Results", showWarnings = FALSE)
-f_sum <- file.path("Results", paste0("leave_one_out_summary_", Cell1, "_", Cell2, ".csv"))
-f_det <- file.path("Results", paste0("leave_one_out_detail_",  Cell1, "_", Cell2, ".csv"))
+f_sum <- file.path("Results", paste0(.out_prefix, "leave_one_out_summary_",
+                                     Cell1, "_", Cell2, ".csv"))
+f_det <- file.path("Results", paste0(.out_prefix, "leave_one_out_detail_",
+                                     Cell1, "_", Cell2, ".csv"))
 write.csv(loo_summary, f_sum, row.names = FALSE)
 write.csv(loo_detail,  f_det, row.names = FALSE)
 
@@ -198,5 +237,11 @@ print(as.data.frame(
            n_drops, n_drops_below, robust_to_any_single_drop)),
   digits = 3)
 cat("\nDiscoveries robust to every single-instrument drop:",
-    sum(loo_summary$robust_to_any_single_drop), "of", nrow(loo_summary), "\n")
+    sum(loo_summary$robust_to_any_single_drop, na.rm = TRUE), "of",
+    nrow(loo_summary), "\n")
 cat("Written to", f_sum, "and", f_det, "\n")
+
+## Package versions used for this run.
+writeLines(utils::capture.output(sessionInfo()),
+           paste0("Results/", .out_prefix,
+                  "sessionInfo_leave_one_instrument_out.txt"))

@@ -42,6 +42,8 @@
 ##
 ## OUTPUT (written to Results/):
 ##   posterior_sign_probabilities_<Cell1>_<Cell2>.csv
+##   sessionInfo_posterior_sign_probabilities.txt
+## Each name is prefixed "smoke_" when the primary run was a check.
 ############################################################
 
 suppressPackageStartupMessages({
@@ -61,6 +63,24 @@ if (length(.missing) > 0) {
 }
 
 source("Github Codes/build_triplet_inputs.R")
+
+## ---- Reproducibility --------------------------------------------------------
+## Each chain is seeded separately, as in convergence_diagnostics.R, so that
+## the refits are reproducible and do not depend on the random number state
+## left by the primary analysis.
+SEED_SIGN <- 20260921
+set.seed(SEED_SIGN, kind = "Mersenne-Twister")
+
+## ---- Output names ---------------------------------------------------------
+## Prefixed "smoke_" when the primary run in this session was a check, by the
+## rule used in real_data_analysis.R, so that a check never overwrites a
+## reported result.
+.out_prefix <- if ((exists(".out_prefix") && identical(.out_prefix, "smoke_")) ||
+                   isTRUE(get0(".mrccc_truncated", ifnotfound = FALSE)) ||
+                   N_ITER != 100000L ||
+                   !isTRUE(all.equal(get0("LD_R2_MAX", ifnotfound = 0.8), 0.8))) {
+  "smoke_"
+} else ""
 
 ## Which triplets to refit. Default: the declared discoveries.
 TARGETS <- Output_MR_CCC %>%
@@ -88,6 +108,7 @@ for (i in seq_len(nrow(TARGETS))) {
 
   ## Identical sampler settings to the primary analysis.
   fits <- lapply(seq_len(N_CHAINS), function(cc) {
+    set.seed(SEED_SIGN + 1000L * cc)
     mr_ccc_gibbs(
       inp$X, inp$Z, inp$Y, inp$G, inp$H, inp$V,
       n_iter = N_ITER, burn_in = BURN_IN, thin = THIN,
@@ -147,7 +168,8 @@ sign_tab <- bind_rows(rows[!vapply(rows, is.null, logical(1))])
 
 dir.create("Results", showWarnings = FALSE)
 out_csv <- file.path("Results",
-             paste0("posterior_sign_probabilities_", Cell1, "_", Cell2, ".csv"))
+             paste0(.out_prefix, "posterior_sign_probabilities_",
+                    Cell1, "_", Cell2, ".csv"))
 write.csv(sign_tab, out_csv, row.names = FALSE)
 
 cat("\n=========== POSTERIOR SIGN PROBABILITIES ===========\n")
@@ -161,3 +183,8 @@ cat("\nRead as: P_sign is the posterior probability that beta_XZ has the sign",
     "\nof its point estimate. XZ_marg_* mixes spike and slab; XZ_cond_* is",
     "\nconditional on the interaction being included in the model.\n")
 cat("\nWritten to", out_csv, "\n")
+
+## Package versions used for this run.
+writeLines(utils::capture.output(sessionInfo()),
+           paste0("Results/", .out_prefix,
+                  "sessionInfo_posterior_sign_probabilities.txt"))

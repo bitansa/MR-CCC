@@ -53,5 +53,5 @@ done
 
 ELAPSED=$(( ($(date +%s) - START) / 60 ))
 echo "Sweep finished in ${ELAPSED} minutes."
-echo "Pairs with output:"
-ls -1 Results/*_MR_CCC.rds 2>/dev/null | wc -l
+echo "Pairs with output (smoke-test files excluded):"
+ls -1 Results/*_MR_CCC.rds 2>/dev/null | grep -v '^Results/smoke_' | wc -l

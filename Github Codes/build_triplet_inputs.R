@@ -14,8 +14,9 @@
 ## representations would, for any triplet where AUCell or
 ## UCell wins the correlation contest, silently fit a
 ## different outcome variable than the primary analysis. A
-## single definition removes that whole class of
-## inconsistency.
+## single definition removes that class of inconsistency;
+## the representation actually chosen in a refit is also
+## checked against the primary output (see below).
 ##
 ## KEEP IN SYNC with Steps 1-6 of real_data_analysis.R. If
 ## the primary pipeline changes how a triplet is assembled,
@@ -24,14 +25,52 @@
 ## PREREQUISITES (all inherited from real_data_analysis.R):
 ##   lr_filtered, key_cols, RNA.count.adj_Cell1,
 ##   RNA.count.adj_Cell2, V_donor, get_SNP_matrix, gsva_scores,
-##   centre_cols, orient_pc1
+##   centre_cols, orient_pc1; optionally Output_MR_CCC, against
+##   which the re-evaluated pathway representation is checked.
 ############################################################
+
+## ---- Comparison with the primary representation ----------------------------
+## The adaptive rule is re-evaluated whenever a triplet is rebuilt. AUCell
+## breaks ties in its gene rankings at random, so the choice can in principle
+## differ from the one recorded in the primary output, in which case the
+## refit uses a different outcome variable. This helper reports such a
+## difference with a warning; it does not stop the refit. The primary output
+## is looked up in Output_MR_CCC when that object and its `representation`
+## column exist, and the check is skipped otherwise.
+check_primary_representation <- function(lig_sym, rec_sym, pth, chosen) {
+  if (!exists("Output_MR_CCC") ||
+      !"representation" %in% names(Output_MR_CCC)) return(invisible(NA))
+  hit <- which(Output_MR_CCC$ligand_col_name   == lig_sym &
+               Output_MR_CCC$receptor_col_name == rec_sym &
+               Output_MR_CCC$pathway_name      == pth)
+  if (length(hit) != 1L) return(invisible(NA))
+  primary <- Output_MR_CCC$representation[hit]
+  same <- identical(as.character(primary), as.character(chosen))
+  if (!same) {
+    warning("Pathway representation for ", lig_sym, "-", rec_sym, " (", pth,
+            ") is '", chosen, "' in this refit but '", primary,
+            "' in the primary analysis.", call. = FALSE)
+  }
+  invisible(same)
+}
 
 build_triplet_inputs <- function(lig_sym, rec_sym, pth, verbose = TRUE) {
 
-  run <- which(lr_filtered$ligand_symbol   == lig_sym &
-               lr_filtered$receptor_symbol == rec_sym &
-               lr_filtered$pathway_name    == pth)[1]
+  # Triplets are identified by gene SYMBOL. A symbol triple that matches more
+  # than one row of lr_filtered (for example one symbol mapped to two Ensembl
+  # identifiers) cannot be resolved here and is reported rather than resolved
+  # by taking the first match.
+  runs <- which(lr_filtered$ligand_symbol   == lig_sym &
+                lr_filtered$receptor_symbol == rec_sym &
+                lr_filtered$pathway_name    == pth)
+  if (length(runs) > 1L) {
+    stop("The triplet ", lig_sym, "-", rec_sym, " (", pth, ") matches ",
+         length(runs), " rows of lr_filtered (Ensembl IDs: ",
+         paste(lr_filtered$ligand_ensembl[runs], lr_filtered$receptor_ensembl[runs],
+               sep = "/", collapse = ", "),
+         "); it cannot be identified by gene symbol alone.", call. = FALSE)
+  }
+  run <- runs[1]
   if (is.na(run)) return(NULL)
 
   lig <- lr_filtered$ligand_ensembl[run]
@@ -90,6 +129,7 @@ build_triplet_inputs <- function(lig_sym, rec_sym, pth, verbose = TRUE) {
     cat("    [", lig_sym, "-", rec_sym, "] representation: ", best_name,
         "\n", sep = "")
   }
+  check_primary_representation(lig_sym, rec_sym, pth, best_name)
   Y <- matrix(Y_list[[best_name]], ncol = 1)
 
   # ---- Steps 4-6: scales, instruments, covariates ---------------------------

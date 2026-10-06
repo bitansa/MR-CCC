@@ -235,8 +235,8 @@ pip_gradient_high <- "#08306b"
 ## overlap into a single run of digits; this sets a width that fits five
 ## labels and reduces the label size for continuous guides only.
 guide_pip_colourbar <- function() {
-  # Wide enough for five labels at 16 pt to sit apart; at 90 pt they ran
-  # together into a single unreadable string.
+  # Wide enough for five labels at 16 pt to sit apart; on a much narrower
+  # bar adjacent labels overlap and become unreadable.
   guide_colourbar(barwidth = grid::unit(260, "pt"),
                   barheight = grid::unit(14, "pt"),
                   title.position = "top",
@@ -308,9 +308,12 @@ breaks_at_most <- function(n_max = 4L) {
   }
 }
 
-## Iteration counts in thousands. The retained range is n_iter - burn_in, so
-## at the current protocol (100,000 iterations, 2,000 burn-in) the breaks
-## render as 0k, 50k, 100k.
+## Iteration counts in thousands. The retained range is n_iter - burn_in,
+## 98,000 per chain at the current protocol (100,000 iterations, 2,000
+## burn-in). plot_trace() expands the axis by 6% on each side and ggplot2
+## passes the expanded range to the break function, so the breaks render as
+## 0k, 50k and 100k; the 100k break lies just beyond the last retained
+## iteration, inside the expanded panel.
 label_thousands <- scales::label_number(scale = 1e-3, suffix = "k")
 
 ############################################################

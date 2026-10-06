@@ -105,9 +105,9 @@ alpha_sig_mis <- 0.05
 
 ## ---- Chain length ----------------------------------------------------------
 ## Scenarios S1-S3 use 20,000 iterations, which is sufficient there because
-## the simulated posterior inclusion probabilities sit far from the 0.5
-## threshold (near 0.1 under the null, near 1.0 under signal), so chain
-## noise essentially never changes a rejection decision.
+## the simulated posterior inclusion probabilities mostly sit far from the
+## 0.5 threshold (well below it under the null, near 1 under signal), so
+## chain noise rarely changes a rejection decision.
 ##
 ## That argument does not carry over to misspecification. Departures from
 ## the assumed model make the posterior less decisive and pull the inclusion
@@ -149,8 +149,10 @@ beta_Z_all  <- 0.5
 
 ## Target first-stage F values for S4. The real-data analysis has median
 ## F ~ 1.5 (ligand) and ~1.8 (receptor), with first-stage F below 10
-## throughout, while S1-S3 correspond to F ~ 70. The grid therefore spans
-## the observed range and the regime of scenarios S1-S3.
+## throughout, while the S1-S3 design (pi = 0.5) corresponds to a
+## calibration F of about 70 at n = 500, rising in proportion to n at the
+## larger S1-S3 sample sizes. The grid therefore spans the observed range and
+## the regime of scenarios S1-S3 at n = 500.
 target_F_grid <- c(1, 2, 5, 10, 25, 70)
 
 ## S5: AR(1) correlation among instrument columns.
@@ -176,15 +178,15 @@ nl_form_grid <- c("quadratic")
 ## effect itself, which is severe.
 ##
 ## Sweeping the strength rather than fixing one value matters for how the
-## result can be reported. A single severe setting invites the reply that the
-## misspecification was extreme; a single mild setting invites the reply that
-## a stronger one was not tried. A dose-response answers both: it shows that
-## the working model is unaffected while the departure is mild, identifies
-## where it begins to manufacture an interaction, and reports how large that
-## spurious interaction is at each level, so a reader can judge for
-## themselves which regime their own application resembles. The model itself
-## is not changed in response to this scenario; the scenario characterises
-## the range over which the linear working model remains adequate.
+## result can be read. A single severe setting describes only an extreme
+## departure, and a single mild setting says nothing about stronger ones. A
+## dose-response covers both: it shows whether the working model is affected
+## while the departure is mild, identifies where it begins to manufacture an
+## interaction, and reports how large that spurious interaction is at each
+## level, so a reader can judge which regime their own application
+## resembles. The model itself is not changed in response to this scenario;
+## the scenario characterises the range over which the linear working model
+## remains adequate.
 nl_coef_grid <- c(0.05, 0.1, 0.2, 0.3)
 
 ############################################################
@@ -233,7 +235,8 @@ F_for_pi <- function(pi_val, n,
 ##
 ## Extends generate_data() from simulation_mrccc.R with four switches. With
 ## all switches at their defaults the generator reduces EXACTLY to the S1-S3
-## data-generating model, which is asserted in the self-test at the end.
+## data-generating model, which is checked by the self-test that runs before
+## the study.
 ##
 ##   pi_val      first-stage effect size (set via pi_for_target_F for S4)
 ##   iv_corr     AR(1) correlation between adjacent instrument columns (S5)
@@ -520,6 +523,29 @@ summarise_mis <- function(res) {
 }
 
 ############################################################
+## SELF-TEST
+##
+## With every misspecification switch off, generate_data_mis() must reduce to
+## the S1-S3 generator. This guards against the extended generator silently
+## changing the baseline against which S4-S7 are compared. It runs before the
+## study, so that a failure is visible before the long run starts. It is
+## independent of the study's results: run_misspecification() selects its
+## generator and sets its seed itself, so the draws made here do not reach it.
+############################################################
+local({
+  set.seed(99)
+  a <- generate_data_mis(n = 400, beta_X = 0.3, beta_XZ = 0.3, pi_val = 0.5)
+  set.seed(99)
+  b <- generate_data(n = 400, pG = pG_mis, pH = pH_mis, pV = pV_mis,
+                     beta_X = 0.3, beta_XZ = 0.3, beta_Z = beta_Z_all,
+                     conf_strength = conf_mis, pi_val = 0.5)
+  ok <- isTRUE(all.equal(as.numeric(a$Y), as.numeric(b$Y), tolerance = 1e-10))
+  cat("\nSelf-test (defaults reduce to the S1-S3 generator):",
+      if (ok) "PASS\n" else
+        "FAIL -- generate_data_mis() at default settings does not reduce to generate_data(); investigate before relying on S4-S7\n")
+})
+
+############################################################
 ## RUN AND SAVE
 ############################################################
 res_mis <- run_misspecification()
@@ -634,22 +660,7 @@ save_fig(p_box_score,  "sim_S4_S7_score_box",  16, 11)
 save_fig(p_box_betaX,  "sim_S4_S7_betaX_box",  16, 11)
 save_fig(p_box_betaXZ, "sim_S4_S7_betaXZ_box", 16, 11)
 
-############################################################
-## SELF-TEST
-##
-## With every misspecification switch off, generate_data_mis() must reduce to
-## the S1-S3 generator. This guards against the extended generator silently
-## changing the baseline against which S4-S7 are compared.
-############################################################
-local({
-  set.seed(99)
-  a <- generate_data_mis(n = 400, beta_X = 0.3, beta_XZ = 0.3, pi_val = 0.5)
-  set.seed(99)
-  b <- generate_data(n = 400, pG = pG_mis, pH = pH_mis, pV = pV_mis,
-                     beta_X = 0.3, beta_XZ = 0.3, beta_Z = beta_Z_all,
-                     conf_strength = conf_mis, pi_val = 0.5)
-  ok <- isTRUE(all.equal(as.numeric(a$Y), as.numeric(b$Y), tolerance = 1e-10))
-  cat("\nSelf-test (defaults reduce to the S1-S3 generator):",
-      if (ok) "PASS\n" else
-        "FAIL -- generate_data_mis() at default settings does not reduce to generate_data(); investigate before running S4-S7\n")
-})
+## Package versions used for this run. The study has no reduced-run
+## override, so the file name carries no "smoke_" prefix.
+writeLines(utils::capture.output(sessionInfo()),
+           "Results/sessionInfo_simulation_misspecification.txt")

@@ -18,6 +18,8 @@
 ##     fmt_cell(x)                           display name of a cell type
 ##     pair_label_for(Cell1, Cell2)          "sender -> receiver" title fragment
 ##     add_plot_columns(out, discovery_rule) LR label and `discover` flag
+##     pathway_levels_all, pathway_palette(out)
+##                                           fixed pathway levels and colours
 ##     plot_bubble(out, pair_label, pip_thresh)          p1
 ##     plot_pip_ranking(out, pair_label, pip_thresh)     p2
 ##     plot_effect_curves(out, pair_label, pip_thresh)   p3
@@ -33,6 +35,18 @@
 ##     plot_s5_correlated(sum_mis)           p_s5
 ##     plot_s6_pleiotropy(sum_mis)           p_s6
 ##     plot_s7_nonlinear(sum_mis)            p_s7
+##     plot_mis_estimate_box(mis_raw, quantity)
+##                                           p_box_score, p_box_betaX,
+##                                           p_box_betaXZ (estimate boxplots)
+##     helpers used by the S4-S7 figures:
+##       mis_arm_labels, mis_scenario_labels facet strip labels
+##       mis_arm_order(df), mis_method_order(df)
+##                                           arm and method display order
+##       mis_n_label(v)                      "n = ..." facet label
+##       mis_mcse_layer(df)                  +/- one MCSE error bars
+##       mis_layers(df, xvar, xlab, logx)    layers shared by S4-S7
+##       mis_representative(mis_raw)         representative settings
+##       mis_estimates_long(mis_raw)         long format for the boxplots
 ##
 ##   Convergence (convergence_diagnostics.R, regenerate_figures.R)
 ##     plot_trace(trace_tab)                 p_trace
@@ -196,8 +210,13 @@ plot_pip_ranking <- function(out, pair_label, pip_thresh) {
   n_total <- nrow(out)
   pathway_colors <- pathway_palette(out)
 
+  # One row per triplet. The row key includes the pathway, so that a
+  # ligand-receptor pair listed under two pathways is drawn on two rows
+  # rather than overplotted on one; the axis label shows the pair only.
+  row_sep <- " @@ "
   df_lollipop <- out %>%
-    mutate(LR_ranked = fct_reorder(LR, gamma_mean))
+    mutate(LR_ranked = fct_reorder(paste0(LR, row_sep, pathway_name),
+                                   gamma_mean))
 
   ggplot(df_lollipop, aes(x = gamma_mean, y = LR_ranked)) +
     # Shaded discovery zone
@@ -235,6 +254,7 @@ plot_pip_ranking <- function(out, pair_label, pip_thresh) {
       breaks = c(0, 0.25, 0.5, 0.75, 1.0),
       labels = c("0", "0.25", "0.50", "0.75", "1.00")
     ) +
+    scale_y_discrete(labels = function(k) sub(paste0(row_sep, ".*$"), "", k)) +
     # Single-line legend entries: two-line entries in a two-column legend
     # overlap the entry below them.
     scale_color_manual(values = pathway_colors,
@@ -290,13 +310,16 @@ plot_pip_ranking <- function(out, pair_label, pip_thresh) {
 ## Every shown curve is labelled at its rightmost data point.
 ############################################################
 plot_effect_curves <- function(out, pair_label, pip_thresh) {
-  n_disc <- sum(out$discover)
+  # The curves drawn are those with PIP > pip_thresh, and the count in the
+  # subtitle is taken by the same rule, so the two always agree. (Under the
+  # default "pip" discovery rule this set is also the `discover` set.)
+  n_disc <- sum(out$gamma_mean > pip_thresh, na.rm = TRUE)
 
   # A cell-type pair with no triplet above the threshold has nothing to draw.
   # Returning an annotated empty panel, rather than proceeding, avoids an
   # error from unnesting an empty list-column, which would otherwise stop
   # the pipeline for that pair after its results had already been saved.
-  if (sum(out$gamma_mean > pip_thresh, na.rm = TRUE) == 0L) {
+  if (n_disc == 0L) {
     return(
       ggplot() +
         annotate("text", x = 0.5, y = 0.5, size = 9,
@@ -675,9 +698,9 @@ mis_layers <- function(df, xvar, xlab, logx = FALSE) {
 }
 
 ## S4: weak instruments. Instrument strength is swept from the regime
-## observed in the real analysis (F ~ 1.5) to that of scenarios S1-S3
-## (F ~ 70), so both sit on one continuous axis. Plotted against the
-## REALISED median F rather than the target, since the realised value is
+## observed in the real analysis (F ~ 1.5) to that of scenarios S1-S3 at
+## n = 500 (calibration F ~ 70), so both sit on one continuous axis.
+## Plotted against the REALISED median F rather than the target, since the realised value is
 ## what a reader can compare with the F statistics reported for the data.
 plot_s4_weak <- function(sum_mis) {
   mis_layers(sum_mis %>% filter(scenario == "S4"),

@@ -73,7 +73,11 @@ From CRAN:
 `Rcpp`, `RcppArmadillo`, `dplyr`, `tidyr`, `tibble`, `purrr`, `stringr`,
 `forcats`, `ggplot2`, `scales`, `ggrepel`, `ggtext`, `Matrix`, `msigdbr`
 (≥ 10.0.0, which provides the `collection`/`subcollection` arguments used by
-`build_lr_database.R`).
+`build_lr_database.R`). From version 10, msigdbr may obtain the full MSigDB
+gene-set data, including the human Reactome sets used here, from the
+companion package `msigdbdf`; if `msigdbr()` reports that `msigdbdf` is
+missing, install it as the message directs (at the time of writing,
+`install.packages("msigdbdf", repos = "https://igordot.r-universe.dev")`).
 
 From Bioconductor:
 `GenomicRanges`, `AUCell`, `UCell`, `GSVA`.
@@ -91,7 +95,7 @@ BiocManager::install(c("GenomicRanges", "AUCell", "UCell", "GSVA"))
 |---|---|
 | `mr_ccc_gibbs.cpp` | The blocked Gibbs sampler (RcppArmadillo). Identical to `MRCCC/src/mr_ccc_gibbs.cpp` in the package. |
 | `build_lr_database.R` | Builds the ligand–receptor database from CellPhoneDB and loads the Reactome gene sets. |
-| `build_triplet_inputs.R` | Shared definition of how one ligand–receptor–pathway triplet is assembled; sourced by the refit scripts so they cannot drift from the primary analysis. |
+| `build_triplet_inputs.R` | Shared definition of how one ligand–receptor–pathway triplet is assembled; sourced by the refit scripts so that they use the same input construction as the primary analysis. It also warns when the pathway representation chosen in a refit differs from the one recorded in the primary output. |
 | `real_data_analysis.R` | **Primary analysis** for one ordered cell-type pair: all triplets, posterior summaries, convergence diagnostics, error-rate control, three figures. |
 | `run_pair.R`, `run_all_pairs.sh` | Run the primary analysis for one pair in a fresh R process, or sweep all twenty ordered pairs. Resumable. |
 | `convergence_diagnostics.R` | Trace figure (joint log-likelihood and running inclusion probability, all chains) for the declared discoveries, per-parameter R̂ table, and runtime benchmark. |
@@ -170,8 +174,8 @@ source("Github Codes/regenerate_figures.R")
 
 | Analysis | Chains × iterations | Burn-in | Retained draws |
 |---|---|---|---|
-| Real data and all sensitivities | 4 × 100,000, dispersed starts | 2,000 per chain | ≈ 392,000 pooled |
-| Simulations S4–S7 | 1 × 400,000 | 2,000 | ≈ 398,000 |
+| Real data and all sensitivities | 4 × 100,000, dispersed starts | 2,000 per chain | 392,000 pooled |
+| Simulations S4–S7 | 1 × 400,000 | 2,000 | 398,000 |
 | Simulations S1–S3 | 1 × 20,000 | 2,000 | 18,000 |
 
 Thinning is 1 throughout. The two large analyses rest on the same number of
@@ -185,7 +189,14 @@ and for S4–S7 (every replicate, column `MR_pip_mcse`); the S1–S3 output does
 not store it. Both simulation studies use 100 replicates per cell and report
 the Monte Carlo standard error of every rejection rate.
 
-**Seeds.** The real-data scripts set the seed 20260921. S1–S3 seed each of
+**Seeds.** The real-data scripts set the seed 20260921, naming the
+Mersenne-Twister generator explicitly (R's default, so a fresh session is
+unaffected). `donor.rda` contains a saved `.Random.seed`, which `load()`
+restores, so in `real_data_analysis.R` and `instrument_overlap_sensitivity.R`
+the draws made after the data are loaded follow that saved state; it is fixed,
+so runs remain reproducible. `convergence_diagnostics.R`,
+`posterior_sign_probabilities.R` and `leave_one_instrument_out.R` seed each
+chain separately. S1–S3 seed each of
 the 1,200 replicate jobs individually (seeds 1 to 1,200, passed through
 `run_one_replicate()` to `generate_data()`), so they are reproducible
 regardless of parallelisation. S4–S7 run in parallel with `mclapply` from
@@ -236,9 +247,16 @@ outcomes.
 | Primary analysis, one pair | ~1–2 h (pathway scoring dominates; ~41 of ~151 candidate triplets are analysed) |
 | All twenty pairs | ~26 h |
 | Convergence diagnostics | ~3–4 min per discovery |
+| Posterior sign probabilities | ~3–4 min per discovery (one refit of 4 chains, ~1 min, plus pathway scoring) |
 | Leave-one-instrument-out | ~20 min per discovery |
+| Pathway-representation sensitivity, main-text pair | ~12 h: Part 1 refits ~41 triplets under 7 rules (~290 refits) and Part 2 runs 10 permutations × 20 triplets × 2 rules (400 refits), each refit ~1 min |
+| Instrument-overlap sensitivity | ~5 min for Tier 1 (all twenty pairs, no MCMC); ~2–3 h with Tier 2 (~41 refits plus pathway scoring) |
 | Simulations S1–S3 (1,200 fits × 20,000 sweeps, with comparators) | ~1.7 h |
 | Simulations S4–S7 (10,800 fits × 400,000 sweeps) | ~21 h |
+
+These are approximate. Sampling costs about 14 s per 100,000 sweeps at
+n = 651, so one refit of four chains takes about a minute; rebuilding the six
+pathway scores of a triplet takes a further 2–3 minutes.
 
 ## Outputs
 
@@ -247,7 +265,7 @@ so figures can be restyled or re-exported from the saved objects.
 
 | File | Written by |
 |---|---|
-| `Results/<Cell1>_<Cell2>_MR_CCC.rds` | `real_data_analysis.R` — one row per triplet with posterior means, credible intervals, sign-reversal threshold, MCSE, ESS, R̂ (β_X, β_XZ, γ, log-likelihood), instrument strength, discovery flags, chosen pathway representation |
+| `Results/<Cell1>_<Cell2>_MR_CCC.rds` | `real_data_analysis.R` — one row per triplet with posterior means, credible intervals, sign-reversal threshold, MCSE, ESS, R̂ (β_X, β_XZ, γ, log-likelihood), instrument strength, discovery flags, chosen pathway representation, and the ligand and receptor Ensembl identifiers (`ligand_ensembl`, `receptor_ensembl`; labels only, not required by any downstream script) |
 | `Results/convergence_diagnostics_<C1>_<C2>.csv`, `Results/convergence_trace_<C1>_<C2>.rds` | `convergence_diagnostics.R` |
 | `Results/runtime_benchmark.csv` | `convergence_diagnostics.R` |
 | `Results/posterior_sign_probabilities_<C1>_<C2>.csv` | `posterior_sign_probabilities.R` |
@@ -256,7 +274,16 @@ so figures can be restyled or re-exported from the saved objects.
 | `Results/representation_{fixed,concord,null}_<C1>_<C2>.csv` | `pathway_representation_sensitivity.R` |
 | `Results/simulation_S1_S3_raw.csv`, `Results/simulation_table_S{1,2,3}.csv` | `simulation_mrccc.R` |
 | `Results/simulation_S{4,5,6,7}_*.csv`, `Results/simulation_S4_S7_summary.csv` | `simulation_misspecification.R` |
+| `Results/sessionInfo_<script>.txt` | `real_data_analysis.R`, the four post-hoc scripts of step 3, `instrument_overlap_sensitivity.R`, `simulation_mrccc.R`, `simulation_misspecification.R` |
 | `Plots/*.pdf` | the analysis scripts and `regenerate_figures.R` (identical names, so regenerated figures replace the originals) |
+
+**Session information.** Each of these scripts ends by writing
+`utils::capture.output(sessionInfo())` to `Results/sessionInfo_<script>.txt`,
+which records the R and package versions used for that run. Record the
+CellPhoneDB release (v5) and the msigdbr version (with its MSigDB release)
+alongside these files: the ligand–receptor table and the Reactome gene sets
+depend on both, and the CellPhoneDB tables are read from CSV files that no
+package version identifies.
 
 ## Smoke test
 
@@ -272,6 +299,28 @@ Both are announced loudly at the start of the run and again beside the
 discovery counts, and the chain length is recorded in the output object, so a
 check can never be mistaken for a reportable result. Remove both objects
 (`rm(.mrccc_n_iter, .mrccc_max_triplets)`) before a real run.
+
+A check writes its outputs under names prefixed `smoke_` (for example
+`Results/smoke_NKCells_MonocytesCells_MR_CCC.rds`), so that it never
+overwrites a reported result. The prefix is applied whenever `N_ITER` is not
+100,000, the triplet universe is truncated, or the clumping threshold is not
+0.8. The post-hoc scripts of step 3 inherit it from the session, and
+`instrument_overlap_sensitivity.R` applies it when its clumping threshold is
+not 0.8. `regenerate_figures.R` and `run_all_pairs.sh` ignore `smoke_` files.
+
+### Overrides
+
+Each override is an object assigned in the session **before** the script is
+sourced; none requires editing a script.
+
+| Object | Read by | Effect |
+|---|---|---|
+| `.mrccc_cell1`, `.mrccc_cell2` | `real_data_analysis.R` | Sender and receiver cell types (default NK cells → monocytes); set by `run_pair.R`. |
+| `.mrccc_n_iter`, `.mrccc_max_triplets` | `real_data_analysis.R` | Smoke test, as above. |
+| `.mrccc_ld_r2_max` | `real_data_analysis.R`, `instrument_overlap_sensitivity.R` | LD clumping threshold r² for instrument selection (default 0.8; 1 disables clumping). Any other value is treated as a check and prefixes the outputs `smoke_`. |
+| `.mrccc_run_tier2` | `instrument_overlap_sensitivity.R` | `FALSE` runs the diagnostics (Tier 1 and Sections 4b–4e) without the Tier 2 refit (default `TRUE`). |
+| `.mrccc_sim_cores` | `simulation_mrccc.R`, `simulation_misspecification.R` | Caps the number of cores used by `mclapply` (default: all cores but one). |
+| `.run_s1_s3` | `simulation_mrccc.R` | `FALSE` loads the functions and settings without running S1–S3, e.g. before `simulation_misspecification.R` in a new session (default `TRUE`). |
 
 ## Citation
 
