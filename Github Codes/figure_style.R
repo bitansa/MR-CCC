@@ -264,7 +264,7 @@ lab_beta_X_std  <- function() expression(hat(beta)[X]^{(s)})
 lab_beta_XZ_std <- function() expression(hat(beta)[XZ]^{(s)})
 lab_beta_X      <- function() expression(hat(beta)[X])
 lab_beta_XZ     <- function() expression(hat(beta)[XZ])
-lab_pip         <- function() expression(paste("PIP  (", hat(gamma), ")"))
+lab_pip         <- function() "PIP"
 
 ## Parseable strings for facet strips (label_parsed), same notation.
 lab_strip_abs_beta_X_std  <- function() "abs(hat(beta)[X]^{(s)})"
@@ -281,7 +281,7 @@ lab_strip_trace_parameters <- function() {
     # Quoted, because these strips are drawn with label_parsed and an
     # unquoted "Log-likelihood" would parse as a subtraction and render the
     # hyphen as a minus sign.
-    "log-likelihood"       = "atop('Log-', 'likelihood')")
+    "log-likelihood"       = "'Log-likelihood'")
 }
 
 ## Facet-row order for the trace figure, so that the log-likelihood appears

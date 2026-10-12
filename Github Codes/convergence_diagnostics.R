@@ -274,7 +274,7 @@ for (i in seq_len(nrow(sel))) {
   # Facet column label for the trace plot: ligand on the first line and
   # receptor on the second, so that long gene symbols do not widen the
   # panels. The table label `lab` keeps the single-line form.
-  lab_facet <- paste0(sel$ligand_col_name[i], "\n", sel$receptor_col_name[i])
+  lab_facet <- paste0(sel$ligand_col_name[i], "\u2013", sel$receptor_col_name[i])
 
   for (par in DIAG_PARS) {
     ch <- lapply(fits, function(f) as.numeric(f[[paste0(par, "_draws")]]))

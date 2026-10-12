@@ -302,7 +302,7 @@ plot_pip_ranking <- function(out, pair_label, pip_thresh) {
 ##
 ## Each curve shows how the total standardized ligand effect
 ##   effect(z) = beta_X^(s) + beta_XZ^(s) * z
-## varies with standardized receptor expression z = Z / SD(Z).
+## varies with standardized receptor expression z = Z / sd(Z).
 ##
 ## Only pairs that exceed the PIP threshold are plotted.
 ## Only pathway panels that contain at least one such discovery
@@ -399,7 +399,7 @@ plot_effect_curves <- function(out, pair_label, pip_thresh) {
   # atop(), which stacks two expressions.
   subtitle_expr <- bquote(
     atop(paste("Each curve: ", .(bX), " + ", .(bXZ),
-               "  ·  (Z / SD(Z));  shaded band = pointwise 95% credible interval"),
+               "  ·  (Z / sd(Z));  shaded band = pointwise 95% credible interval"),
          paste(.(n_disc), .(if (n_disc == 1) " triplet" else " triplets"),
                " with PIP > ", .(pip_thresh),
                " shown;  receptor range: central 98% of donors"))
@@ -458,7 +458,7 @@ plot_effect_curves <- function(out, pair_label, pip_thresh) {
                                    pair_label, "  (MR-CCC)"), 58,
                             markdown = TRUE),
       subtitle = subtitle_expr,
-      x = "Standardized receptor expression  (Z / SD(Z))",
+      x = "Standardized receptor expression  (Z / sd(Z))",
       # Shortened: the full parenthetical made this title taller than the
       # figure, and a rotated axis title that does not fit is clipped at
       # both ends. The units are given in the caption instead.
@@ -719,8 +719,8 @@ plot_s5_correlated <- function(sum_mis) {
     scale_x_continuous(breaks = c(0, 0.3, 0.6, 0.9)) +
     labs(title = "S5: behavior under correlated instruments",
          subtitle = wrap_title(paste(
-           "The largest correlation shown sets the clumping threshold",
-           "used on the real data."), 88))
+           "The largest correlation shown matches the clumping bound",
+           "used on the real data; instruments are strong in this scenario."), 88))
 }
 
 ## S6: invalid / pleiotropic instruments. Faceted additionally by the
@@ -778,7 +778,7 @@ plot_s7_nonlinear <- function(sum_mis) {
 ## Each scenario is shown at TWO representative settings of its departure
 ## rather than at every grid point, because a box per setting would be
 ## unreadable and the trends are already in the line plots: S4 at target
-## F = 70 and 1, S5 at rho = 0 and 0.9, S6 at (fraction, effect) = (0.2,
+## F = 70 and 1, S5 at r = 0 and 0.9, S6 at (fraction, effect) = (0.2,
 ## 0.1) and (0.4, 0.3), and S7 at the smallest and largest nl_coef. Only
 ## the n = 500 replicates are plotted (n_keep below).
 ############################################################
@@ -793,7 +793,7 @@ plot_s7_nonlinear <- function(sum_mis) {
 ##       point nearest the first-stage strength observed in the real analysis,
 ##       so the pair brackets the range the paper reasons about. Strips show
 ##       the realised values.
-##   S5  rho = 0 and rho = 0.9. rho = 0 is exactly the S1-S3 design with
+##   S5  r = 0 and r = 0.9. r = 0 is exactly the S1-S3 design with
 ##       independent instruments, giving a second reference column.
 ##   S6  fraction 0.2 with effect 0.1, and fraction 0.4 with effect 0.3.
 ##       The grid contains no zero-pleiotropy cell, so the contrast is mild
@@ -844,8 +844,8 @@ mis_representative <- function(mis_raw) {
 mis_scenario_labels <- c(
   S4_strong = "S4\nF ≈ 85",
   S4_weak   = "S4\nF ≈ 2",
-  S5_indep  = "S5\nρ = 0",
-  S5_corr   = "S5\nρ = 0.9",
+  S5_indep  = "S5\nr = 0",
+  S5_corr   = "S5\nr = 0.9",
   S6_mild   = "S6\n20%, 0.1",
   S6_severe = "S6\n40%, 0.3",
   S7_mild   = "S7\nmild",
@@ -964,6 +964,10 @@ plot_trace <- function(trace_tab,
                        burn_in  = attr(trace_tab, "burn_in")) {
   if (is.null(n_chains)) n_chains <- nlevels(factor(trace_tab$chain))
 
+  # Triplet strips read "ligand–receptor" on one line, as in the captions.
+  trace_tab$triplet <- gsub("\n", "\u2013", as.character(trace_tab$triplet),
+                            fixed = TRUE)
+
   # Order the facet rows. Levels present in the data are taken in the
   # canonical order; anything unrecognised is appended rather than dropped.
   lv_known   <- trace_parameter_levels()
@@ -981,7 +985,7 @@ plot_trace <- function(trace_tab,
   subtitle <- if (!is.null(n_iter) && !is.null(burn_in)) {
     paste0(
       n_chains, " chains, ", format(n_iter, big.mark = ","),
-      " iterations, burn-in ", format(burn_in, big.mark = ","),
+      " sweeps, burn-in ", format(burn_in, big.mark = ","),
       "; thinned for display only.", gamma_note)
   } else {
     paste0(
@@ -1026,7 +1030,7 @@ plot_trace <- function(trace_tab,
     labs(
       title    = "MCMC trace plots across dispersed chains",
       subtitle = wrap_title(subtitle, 88),
-      x = "Retained iteration",
+      x = "Retained sweep",
       y = y_lab
     ) +
     theme_mrccc() +

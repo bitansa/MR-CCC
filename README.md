@@ -254,7 +254,8 @@ outcomes.
 | Simulations S1–S3 (1,200 fits × 20,000 sweeps, with comparators) | ~1.7 h |
 | Simulations S4–S7 (10,800 fits × 400,000 sweeps) | ~21 h |
 
-These are approximate. Sampling costs about 14 s per 100,000 sweeps at
+These are approximate, measured on a MacBook Pro (Apple M2 Pro, 16 GB).
+Sampling costs about 14 s per 100,000 sweeps at
 n = 651, so one refit of four chains takes about a minute; rebuilding the six
 pathway scores of a triplet takes a further 2–3 minutes.
 
