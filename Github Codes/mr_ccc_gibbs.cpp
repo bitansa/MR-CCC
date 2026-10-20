@@ -96,6 +96,11 @@
 //       priors on (Beta_X, Beta_XZ) and Beta_Z, so that every fit records the
 //       scale it was run under.
 //
+//   (d) Only when save_first_stage = true: Pi_X_draws (n_keep x pG) and
+//       Pi_Z_draws (n_keep x pH), the retained draws of the first-stage
+//       instrument effects, one row per retained iteration. They support
+//       credible intervals for the instrument effects inside the model.
+//
 //       Draws are required for quantities that cannot be recovered from
 //       posterior means: credible intervals for functionals such as the
 //       sign-reversal threshold tau = -Beta_X / Beta_XZ (a ratio, so it
@@ -224,6 +229,11 @@ inline arma::mat safe_inv_sympd(const arma::mat& A, const char* what) {
 //'   independent normal draws with standard deviation `init_scale`.
 //' @param verbose Logical; if `TRUE`, a progress line is printed every 1000
 //'   iterations.
+//' @param save_first_stage Logical; if `TRUE`, the retained draws of the
+//'   first-stage instrument effects are also returned, as `Pi_X_draws` and
+//'   `Pi_Z_draws`. Storing them uses no random numbers, so the other outputs
+//'   are identical to those of a call with `save_first_stage = FALSE` under
+//'   the same random number state.
 //'
 //' @details
 //' The priors on the second-stage coefficients are
@@ -249,7 +259,9 @@ inline arma::mat safe_inv_sympd(const arma::mat& A, const char* what) {
 //'   `prior_scale`, a named numeric vector giving `d_X`, `d_XZ` and `d_Z`.
 //'   `loglik_draws` is the joint
 //'   log-likelihood of the three equations evaluated at each retained draw,
-//'   excluding prior terms.
+//'   excluding prior terms. When `save_first_stage = TRUE` the list also
+//'   contains `Pi_X_draws` and `Pi_Z_draws`, matrices with `n_keep` rows and
+//'   one column per instrument in `G` and `H` respectively.
 //'
 //' @seealso [mr_ccc()] for the user-facing interface.
 //'
@@ -289,7 +301,8 @@ List mr_ccc_gibbs(
     double ridge    = 1e-8,   // diagonal ridge for stable matrix inversion
     int    init_gamma = 1,    // starting value of the inclusion indicator
     double init_scale = 0.0,  // if > 0, Beta_X, Beta_XZ start ~ N(0, sd=init_scale)
-    bool   verbose = false    // if true, report progress every 1000 iterations
+    bool   verbose = false,   // if true, report progress every 1000 iterations
+    bool   save_first_stage = false  // if true, also return draws of Pi_X and Pi_Z
 ) {
 
   // --------------------------------------------------------------------------
@@ -415,8 +428,9 @@ List mr_ccc_gibbs(
   //
   // Only the six scalars needed for these purposes are stored, so the memory
   // cost is negligible (n_keep x 6 doubles; < 10 MB even for 200,000 kept
-  // draws). The high-dimensional blocks (Pi_X, Pi_Z, Alpha_*) are still
-  // summarised by their means only.
+  // draws). The high-dimensional blocks (Pi_X, Pi_Z, Alpha_*) are summarised
+  // by their means only, unless save_first_stage is true, in which case the
+  // draws of Pi_X and Pi_Z are also kept (n_keep x (pG + pH) doubles).
   //
   // The sixth scalar is the joint log-likelihood of the three equations,
   // evaluated at each retained draw. It is a single scalar summary of overall
@@ -432,6 +446,12 @@ List mr_ccc_gibbs(
   arma::vec gamma_draws   = arma::zeros<arma::vec>(n_keep);
   arma::vec mu_draws      = arma::zeros<arma::vec>(n_keep);
   arma::vec loglik_draws  = arma::zeros<arma::vec>(n_keep);
+
+  // Optional first-stage draws: one row per retained iteration. Allocated with
+  // zero rows unless requested, so the default call is unchanged.
+  const int n_keep_fs = save_first_stage ? n_keep : 0;
+  arma::mat Pi_X_draws = arma::zeros<arma::mat>(n_keep_fs, pG);
+  arma::mat Pi_Z_draws = arma::zeros<arma::mat>(n_keep_fs, pH);
 
   // Constant term of a univariate Gaussian log-density, used below.
   const double LOG_2PI = std::log(2.0 * M_PI);
@@ -749,6 +769,10 @@ List mr_ccc_gibbs(
         Beta_Z_draws(si)  = Beta_Z;
         gamma_draws(si)   = static_cast<double>(gamma);
         mu_draws(si)      = mu;
+        if (save_first_stage) {
+          Pi_X_draws.row(si) = Pi_X;
+          Pi_Z_draws.row(si) = Pi_Z;
+        }
 
         // ---- Joint log-likelihood at the current draw ------------------------
         // The three equations are conditionally independent given the
@@ -799,10 +823,11 @@ List mr_ccc_gibbs(
   const double denom = static_cast<double>(save_idx > 0 ? save_idx : 1);
 
   // Rcpp's List::create accepts at most twenty arguments, and the return value
-  // carries twenty-two elements. The list is therefore allocated at its final
-  // length and filled position by position, with the names assigned together at
-  // the end so that each name stays adjacent to the value it labels.
-  const int n_out = 22;
+  // carries twenty-two elements (twenty-four with save_first_stage). The list
+  // is therefore allocated at its final length and filled position by
+  // position, with the names assigned together at the end so that each name
+  // stays adjacent to the value it labels.
+  const int n_out = save_first_stage ? 24 : 22;
   List out(n_out);
   CharacterVector out_names(n_out);
   int k = 0;
@@ -843,6 +868,12 @@ List mr_ccc_gibbs(
     Named("d_XZ") = d_XZ,
     Named("d_Z")  = d_Z);
   out[k] = prior_scale;                     out_names[k] = "prior_scale";   ++k;
+
+  // ---- Optional first-stage draws -----------------------------------------
+  if (save_first_stage) {
+    out[k] = arma::mat(Pi_X_draws.head_rows(save_idx)); out_names[k] = "Pi_X_draws"; ++k;
+    out[k] = arma::mat(Pi_Z_draws.head_rows(save_idx)); out_names[k] = "Pi_Z_draws"; ++k;
+  }
 
   out.attr("names") = out_names;
   return out;

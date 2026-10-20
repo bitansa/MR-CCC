@@ -212,8 +212,10 @@ pal_chains <- c("Chain 1" = "#0072B2",
 ## inclusion probability -- so twelve categories is at the limit of what
 ## colour alone can carry, and the figures that use it also order the points
 ## by probability so that a reader never depends on the colour alone.
+## No black: the discovery ring in the PIP-ranking and bubble figures is
+## black, and a black class colour would hide it.
 pal_pathways_full <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442",
-                       "#0072B2", "#D55E00", "#CC79A7", "#000000",
+                       "#0072B2", "#D55E00", "#CC79A7", "#6A3D9A",
                        "#004949", "#92DBF2", "#920000", "#888888")
 
 pal_pathways <- function(n) {
@@ -234,14 +236,15 @@ pip_gradient_high <- "#08306b"
 ## default colourbar is too narrow for its own tick labels, which then
 ## overlap into a single run of digits; this sets a width that fits five
 ## labels and reduces the label size for continuous guides only.
-guide_pip_colourbar <- function() {
+guide_pip_colourbar <- function(...) {
   # Wide enough for five labels at 16 pt to sit apart; on a much narrower
-  # bar adjacent labels overlap and become unreadable.
+  # bar adjacent labels overlap and become unreadable. Further guide
+  # settings (for example `order`) are passed through.
   guide_colourbar(barwidth = grid::unit(260, "pt"),
                   barheight = grid::unit(14, "pt"),
                   title.position = "top",
                   label.theme = element_text(size = 16,
-                                             family = FONT_FAMILY))
+                                             family = FONT_FAMILY), ...)
 }
 
 ## Breaks and labels for every PIP colour scale, written without trailing
@@ -275,9 +278,9 @@ lab_strip_abs_beta_XZ_std <- function() "abs(hat(beta)[XZ]^{(s)})"
 lab_strip_trace_parameters <- function() {
   c("Beta_X"               = "beta[X]",
     "Beta_XZ"              = "beta[XZ]",
-    # The running-mean qualification is stated in the trace subtitle; in the
-    # rotated strip it does not fit the panel height.
-    "gamma (running mean)" = "gamma",
+    # The panel shows the running mean of the indicator, not its draws, so
+    # the strip says so.
+    "gamma (running mean)" = "'Running mean of'~gamma",
     # Quoted, because these strips are drawn with label_parsed and an
     # unquoted "Log-likelihood" would parse as a subtraction and render the
     # hyphen as a minus sign.

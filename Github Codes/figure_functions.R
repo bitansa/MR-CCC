@@ -171,6 +171,9 @@ plot_bubble <- function(out, pair_label, pip_thresh) {
       range = c(1.5, 9),
       name  = "Standardized\neffect magnitude"
     ) +
+    # Fixed legend order (PIP colour bar first, then size) for every pair.
+    guides(fill = guide_pip_colourbar(order = 1),
+           size = guide_legend(order = 2)) +
     # One line per pathway, without the shared "Signaling by " prefix:
     # wrapped multi-line labels at an angle overlap their neighbours.
     scale_x_discrete(labels = short_pathway) +
@@ -239,7 +242,10 @@ plot_pip_ranking <- function(out, pair_label, pip_thresh) {
     # PIP value label for discovered triplets
     geom_text(
       data  = df_lollipop %>% filter(discover),
-      aes(label = sprintf("%.2f", gamma_mean)),
+      # Two decimals, except that a PIP which would print as "1.00" is
+      # given three so that it is not read as exactly one.
+      aes(label = ifelse(gamma_mean >= 0.995, sprintf("%.3f", gamma_mean),
+                         sprintf("%.2f", gamma_mean))),
       hjust = -0.30, size = 6, fontface = "bold", color = "grey15"
     ) +
     # Threshold line and annotation
@@ -269,8 +275,9 @@ plot_pip_ranking <- function(out, pair_label, pip_thresh) {
                             markdown = TRUE),
       subtitle = wrap_title(paste0(
         "Triplets ranked by PIP: ", n_total, " shown, ",
-        n_disc,  " with PIP > ", pip_thresh,
-        " (black ring);  shaded region = discovery zone"
+        if (n_disc == 0) paste0("none with PIP > ", pip_thresh)
+        else paste0(n_disc, " with PIP > ", pip_thresh, " (black ring)"),
+        ";  shaded region = discovery zone"
       ), 78),
       x = "Posterior inclusion probability (PIP)",
       y = NULL
@@ -379,31 +386,70 @@ plot_effect_curves <- function(out, pair_label, pip_thresh) {
   # observed receptor expression value for that triplet.
   # Because all displayed curves are discoveries, every curve
   # receives a label.
-  # Labels sit just right of the curve ends and are spread vertically only,
-  # so that several curves ending at the same receptor level (common within
-  # one pathway) do not stack their labels on top of each other. The x axis
-  # is extended on the right to make room for them.
-  df_labels <- df_lines %>%
+  # Labels start just right of the curve ends (left-justified, so they never
+  # overprint a curve) and are spread vertically only, so that several curves
+  # ending at a similar level (common within one pathway) do not stack their
+  # labels on top of each other. The spreading is deterministic: within each
+  # panel the labels are sorted by curve end, pushed apart to a minimum gap
+  # of 6% of the panel's vertical range, and re-centred on the curve ends. A
+  # thin leader joins each curve end to its label. The x axis is extended on
+  # the right to make room for the labels.
+  spread_labels <- function(y, gap) {
+    o <- order(y)
+    s <- y[o]
+    if (length(s) > 1L) {
+      for (i in 2:length(s)) s[i] <- max(s[i], s[i - 1L] + gap)
+    }
+    s <- s - mean(s - y[o])
+    out <- numeric(length(y))
+    out[o] <- s
+    out
+  }
+  panel_range <- df_lines %>%
     group_by(pathway_name) %>%
-    mutate(label_x = max(Z) + 0.03 * diff(range(Z))) %>%
-    group_by(triplet_id, pathway_name, LR, gamma_mean, label_x) %>%
+    summarise(z_min = min(Z), z_max = max(Z),
+              y_range = diff(range(c(lo, hi, effect), na.rm = TRUE)),
+              .groups = "drop")
+  df_labels <- df_lines %>%
+    group_by(triplet_id) %>%
     slice_max(order_by = Z, n = 1, with_ties = FALSE) %>%
+    ungroup() %>%
+    left_join(panel_range, by = "pathway_name") %>%
+    group_by(pathway_name) %>%
+    mutate(label_x = z_max + 0.04 * (z_max - z_min),
+           label_y = spread_labels(effect, 0.06 * y_range[1])) %>%
     ungroup()
+
+  # Room for the labels. Panels have free x scales, so each panel is widened
+  # on the right just enough for its longest label. The label width is
+  # estimated in inches (bold text of size 5.5 mm, about 0.14 in per
+  # character, plus a margin) and converted to data units from the panel
+  # width, which follows from the 14-in figure width and the facet layout.
+  n_col     <- ggplot2::wrap_dims(length(unique(df_lines$pathway_name)))[2]
+  panel_in  <- (14 - 1.4) / n_col - 0.15
+  df_extent <- df_labels %>%
+    group_by(pathway_name) %>%
+    summarise(z_min = z_min[1], z_max = z_max[1],
+              label_in = 0.14 * max(nchar(LR)) + 0.25,
+              y = label_y[1], .groups = "drop") %>%
+    mutate(frac    = pmin(label_in / panel_in, 0.6),
+           x_right = z_min + (z_max - z_min) * 1.07 / (1 - frac))
 
   # Subtitle built from the notation helpers so that it matches the axes.
   bX  <- lab_beta_X_std()[[1]]
   bXZ <- lab_beta_XZ_std()[[1]]
-  # Two lines: as one line this subtitle is wider than the canvas and the
-  # clause giving the number of curves shown is clipped. A plotmath
-  # expression cannot be wrapped by strwrap, so the break is explicit via
-  # atop(), which stacks two expressions.
+  # The description takes two lines: as one line it is wider than the
+  # canvas. The formula needs plotmath and goes in the subtitle; the second
+  # line is plain text and goes in the plot caption, left-aligned. (Stacking
+  # both in the subtitle with atop() centres each line, which indents the
+  # shorter one.)
   subtitle_expr <- bquote(
-    atop(paste("Each curve: ", .(bX), " + ", .(bXZ),
-               "  ·  (Z / sd(Z));  shaded band = pointwise 95% credible interval"),
-         paste(.(n_disc), .(if (n_disc == 1) " triplet" else " triplets"),
-               " with PIP > ", .(pip_thresh),
-               " shown;  receptor range: central 98% of donors"))
+    paste("Each curve: ", .(bX), " + ", .(bXZ),
+          "  ·  (Z / sd(Z));  shaded band = pointwise 95% credible interval")
   )
+  caption_text <- paste0(n_disc, if (n_disc == 1) " triplet" else " triplets",
+                         " with PIP > ", pip_thresh,
+                         " shown;  receptor range: central 98% of donors")
 
   ggplot() +
     # Pointwise 95% credible band, drawn first so the line sits on top.
@@ -423,23 +469,23 @@ plot_effect_curves <- function(out, pair_label, pip_thresh) {
       aes(x = Z, y = effect, group = triplet_id, color = LR),
       linewidth = 1.25, alpha = 0.95
     ) +
-    # Label every curve at its rightmost point; leader segments connect
-    # labels that had to be moved apart.
-    geom_text_repel(
-      data               = df_labels,
-      aes(x = label_x, y = effect, label = LR, color = LR),
-      size               = 5.5,
-      family             = FONT_FAMILY,
-      fontface           = "bold",
-      hjust              = 0,
-      direction          = "y",
-      box.padding        = 0.35,
-      force              = 2,
-      min.segment.length = 0,
-      max.overlaps       = Inf,
-      show.legend        = FALSE
+    # Label every curve at its rightmost point, joined to it by a thin leader.
+    geom_segment(
+      data      = df_labels,
+      aes(x = Z, xend = label_x, y = effect, yend = label_y, color = LR),
+      linewidth = 0.4, alpha = 0.8, show.legend = FALSE
     ) +
-    scale_x_continuous(expand = expansion(mult = c(0.03, 0.45))) +
+    geom_text(
+      data     = df_labels,
+      aes(x = label_x, y = label_y, label = LR, color = LR),
+      size     = 5.5,
+      family   = FONT_FAMILY,
+      fontface = "bold",
+      hjust    = -0.05,
+      show.legend = FALSE
+    ) +
+    geom_blank(data = df_extent, aes(x = x_right, y = y)) +
+    scale_x_continuous(expand = expansion(mult = c(0.03, 0.02))) +
     # One panel per pathway; only panels with discoveries are shown. Strip
     # names drop the shared "Signaling by " prefix so that they fit narrow
     # panels.
@@ -458,13 +504,16 @@ plot_effect_curves <- function(out, pair_label, pip_thresh) {
                                    pair_label, "  (MR-CCC)"), 58,
                             markdown = TRUE),
       subtitle = subtitle_expr,
-      x = "Standardized receptor expression  (Z / sd(Z))",
+      caption  = caption_text,
+      x = "Standardized receptor expression  (Z / sd(Z); 0 = donor average)",
       # Shortened: the full parenthetical made this title taller than the
       # figure, and a rotated axis title that does not fit is clipped at
       # both ends. The units are given in the caption instead.
       y = "Standardized ligand effect"
     ) +
-    theme_mrccc(markdown_title = TRUE)
+    theme_mrccc(markdown_title = TRUE) +
+    theme(plot.caption = element_text(colour = "grey40", hjust = 0),
+          plot.caption.position = "plot")
 }
 
 ############################################################
@@ -644,9 +693,17 @@ plot_sim_betaXZ <- function(sim_long) {
 ## that still say which quantity the row reports. The full definitions of
 ## the three arms belong in the caption.
 mis_arm_labels <- c(
-  null   = "Null\n(size)",
+  null   = "Null\n(type I\nerror)",
   signal = "Signal\n(power)",
   main   = "Main\n(power)")
+
+## Row strips of the ESTIMATE boxplots. Those figures show estimates, not
+## rejection rates, so the quantity named above (type I error, power) does
+## not apply; the strip instead says which effects are present in the arm.
+mis_arm_labels_box <- c(
+  null   = "Null\n(no linear\neffects)",
+  signal = "Signal\n(main +\ninteraction)",
+  main   = "Main\n(main only)")
 mis_arm_order  <- function(df) {
   df$arm <- factor(df$arm, levels = c("null", "signal", "main"))
   df[!is.na(df$arm), , drop = FALSE]
@@ -677,7 +734,8 @@ mis_mcse_layer <- function(df) {
                 show.legend = FALSE)
 }
 
-mis_layers <- function(df, xvar, xlab, logx = FALSE) {
+mis_layers <- function(df, xvar, xlab, logx = FALSE,
+                       arm_labels = mis_arm_labels) {
   df <- mis_method_order(mis_arm_order(df))
   p <- ggplot(df, aes(x = .data[[xvar]], y = reject_rate,
                       colour = method, shape = method, group = method)) +
@@ -687,7 +745,7 @@ mis_layers <- function(df, xvar, xlab, logx = FALSE) {
     mis_mcse_layer(df) +
     geom_line(linewidth = 1.1) +
     geom_point(size = 4.5) +
-    facet_grid(arm ~ n, labeller = labeller(arm = mis_arm_labels,
+    facet_grid(arm ~ n, labeller = labeller(arm = arm_labels,
                                             n   = mis_n_label)) +
     scale_colour_manual(values = pal_methods, name = "Method") +
     scale_shape_manual(values  = shp_methods, name = "Method") +
@@ -708,8 +766,8 @@ plot_s4_weak <- function(sum_mis) {
              logx = TRUE) +
     labs(title = "S4: behavior under weak instruments",
          subtitle = wrap_title(paste(
-           "Dashed line = nominal 0.05 size.",
-           "Left of the plot is the regime observed in the data."), 88))
+           "Dashed line = nominal 0.05 level.",
+           "The left edge approaches the instrument strength observed in the data."), 88))
 }
 
 ## S5: correlated instruments.
@@ -738,7 +796,7 @@ plot_s6_pleiotropy <- function(sum_mis) {
     facet_grid(arm ~ n + pleio_frac, labeller = labeller(
       arm        = mis_arm_labels,
       n          = mis_n_label,
-      pleio_frac = function(v) paste0("Invalid = ", v))) +
+      pleio_frac = function(v) paste0(round(100 * as.numeric(v)), "% invalid"))) +
     scale_x_continuous(breaks = c(0.1, 0.3)) +
     theme(panel.spacing.x = grid::unit(1.6, "lines")) +
     labs(title = "S6: behavior under invalid (pleiotropic) instruments",
@@ -750,18 +808,24 @@ plot_s6_pleiotropy <- function(sum_mis) {
 ## S7: nonlinear ligand effect.
 ## S7 sweeps the STRENGTH of the nonlinearity rather than fixing one value,
 ## so the figure is a dose-response in nl_coef on the same line-and-point
-## form as S4-S6, not a bar chart over methods. nl_coef is on the same scale
-## as beta_X = 0.3, so the right-hand end of the axis is curvature as large
-## as the linear effect itself.
+## form as S4-S6, not a bar chart over methods. The axis runs from a
+## coefficient one sixth of beta_X = 0.3 up to a coefficient equal to beta_X.
 plot_s7_nonlinear <- function(sum_mis) {
+  # In S7 the "null" arm keeps the quadratic ligand effect, so its rejection
+  # rate is not a type I error rate; the row is labelled by what the arm
+  # contains instead of by the error it would measure.
+  s7_arm_labels <- c(null   = "Quadratic\nonly",
+                     signal = "Signal\n(power)",
+                     main   = "Main\n(power)")
   mis_layers(sum_mis %>% filter(scenario == "S7"),
-             "nl_coef", "Strength of the quadratic term") +
+             "nl_coef", "Quadratic coefficient q",
+             arm_labels = s7_arm_labels) +
     scale_x_continuous(breaks = c(0.05, 0.1, 0.2, 0.3)) +
     labs(title = "S7: behavior under a nonlinear ligand effect",
          subtitle = wrap_title(paste(
            "Outcome generated with a quadratic ligand effect;",
            "working model is linear plus interaction.",
-           "In this scenario the null arm keeps the quadratic effect."), 88))
+           "The top row has no linear effects but keeps the quadratic one."), 88))
 }
 
 ############################################################
@@ -846,10 +910,10 @@ mis_scenario_labels <- c(
   S4_weak   = "S4\nF ≈ 2",
   S5_indep  = "S5\nr = 0",
   S5_corr   = "S5\nr = 0.9",
-  S6_mild   = "S6\n20%, 0.1",
-  S6_severe = "S6\n40%, 0.3",
-  S7_mild   = "S7\nmild",
-  S7_severe = "S7\nsevere")
+  S6_mild   = "S6\n20% / 0.1",
+  S6_severe = "S6\n40% / 0.3",
+  S7_mild   = "S7\nq = 0.05",
+  S7_severe = "S7\nq = 0.3")
 
 ## Long format for the estimate boxplots: one row per replicate x method,
 ## with the score and both coefficient estimates as columns.
@@ -918,22 +982,25 @@ plot_mis_estimate_box <- function(mis_raw, quantity = c("score", "beta_X",
     geom_boxplot(aes(shape = method), width = 0.65, outlier.size = 1.6,
                  outlier.shape = NA, alpha = 0.9, linewidth = 0.35) +
     coord_cartesian(ylim = ylims) +
-    geom_point(aes(shape = method), stat = "summary", fun = median,
+    # The point marks the MEAN, which the box (median and quartiles) does
+    # not show; a bias that the median hides, for example from a long tail
+    # of shrunken estimates, then remains visible.
+    geom_point(aes(shape = method), stat = "summary", fun = mean,
                size = 2.6, colour = "black", show.legend = FALSE) +
     facet_grid(arm ~ panel, labeller = labeller(
-      arm = mis_arm_labels, panel = mis_scenario_labels)) +
+      arm = mis_arm_labels_box, panel = mis_scenario_labels)) +
     scale_fill_manual(values = pal_methods, name = "Method") +
     scale_shape_manual(values = shp_methods, name = "Method") +
     labs(title = ttl,
          subtitle = wrap_title(paste0(
-           "Two settings per scenario, milder then more severe; n = ",
+           "Two settings per scenario, milder, then more severe; n = ",
            n_keep, ". Red dashed line = target value."), 88),
          x = "Method", y = y_lab) +
     # These figures carry eight scenario columns and are therefore the
     # widest in the repository, so they are reduced further in print; the
     # scale keeps their text in the same range as the rest.
     theme_mrccc() +
-    theme(axis.text.x = element_text(angle = 40, hjust = 1, size = 18)) +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = 16)) +
     # The x axis already names the methods and is titled "Method", so a
     # legend would only repeat it, in greyscale as well as in colour.
     guides(fill = "none", shape = "none")
@@ -984,18 +1051,18 @@ plot_trace <- function(trace_tab,
 
   subtitle <- if (!is.null(n_iter) && !is.null(burn_in)) {
     paste0(
-      n_chains, " chains, ", format(n_iter, big.mark = ","),
-      " sweeps, burn-in ", format(burn_in, big.mark = ","),
+      n_chains, " chains of ", format(n_iter, big.mark = ","),
+      " iterations each, burn-in ", format(burn_in, big.mark = ","),
       "; thinned for display only.", gamma_note)
   } else {
     paste0(
-      n_chains, " chains from dispersed starts; thinned for display only.",
+      n_chains, " chains from overdispersed starts; thinned for display only.",
       gamma_note)
   }
 
   # Short, because a rotated axis title longer than the figure is tall is
   # clipped at both ends; the running-mean qualification is in the subtitle.
-  y_lab <- "Sampled value"
+  y_lab <- "Value"
 
   ggplot(trace_tab, aes(x = iter, y = value, colour = chain)) +
     geom_line(linewidth = 0.35, alpha = 0.75) +
@@ -1028,9 +1095,9 @@ plot_trace <- function(trace_tab,
                        labels = label_thousands,
                        expand = expansion(mult = 0.06)) +
     labs(
-      title    = "MCMC trace plots across dispersed chains",
+      title    = "MCMC trace plots from overdispersed starting values",
       subtitle = wrap_title(subtitle, 88),
-      x = "Retained sweep",
+      x = "Retained iteration",
       y = y_lab
     ) +
     theme_mrccc() +

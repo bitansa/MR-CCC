@@ -49,3 +49,7 @@ Rplots.pdf
 *.log
 .DS_Store
 Thumbs.db
+
+# ---- Re-runs that only retain extra draws (duplicates of the primary outputs) ----
+Results/firststage_*
+Plots/firststage_*

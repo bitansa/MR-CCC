@@ -170,12 +170,11 @@ pleio_delta_grid <- c(0.1, 0.3)
 nl_form_grid <- c("quadratic")
 
 ## STRENGTH of the nonlinearity, swept rather than fixed. The quadratic term
-## enters as  nl_coef * (X^2 - E[X^2]), so nl_coef is on the same scale as
-## beta_X, which is 0.3 throughout. The grid therefore runs from a curvature
-## one sixth the size of the linear effect -- a mild departure from linearity
-## of the kind a real ligand-response curve might show, and the setting the
-## headline statement is made at -- up to a curvature as large as the linear
-## effect itself, which is severe.
+## enters as  nl_coef * (X^2 - E[X^2]). The grid runs from a coefficient one
+## sixth of beta_X = 0.3 -- a mild departure from linearity of the kind a real
+## ligand-response curve might show -- up to a coefficient equal to beta_X.
+## Because X^2 varies more than X, the quadratic term then dominates the
+## linear one, so the upper end of the grid is a severe departure.
 ##
 ## Sweeping the strength rather than fixing one value matters for how the
 ## result can be read. A single severe setting describes only an extreme

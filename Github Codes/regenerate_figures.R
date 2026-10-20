@@ -72,13 +72,16 @@ input_present <- function(path) {
 ## Results of smoke-test runs are named with a "smoke_" prefix by
 ## real_data_analysis.R and are excluded here: they come from a truncated
 ## triplet universe and a shortened chain, so figures built from them would
-## not be reportable.
+## not be reportable. Results of a first-stage posterior run (prefix
+## "firststage_") reproduce the primary results exactly and are excluded too,
+## so that each pair is drawn once.
 rds_files <- sort(list.files("Results", pattern = "_MR_CCC\\.rds$",
                              full.names = TRUE))
-.is_smoke <- startsWith(basename(rds_files), "smoke_")
+.is_smoke <- startsWith(basename(rds_files), "smoke_") |
+             startsWith(basename(rds_files), "firststage_")
 if (any(.is_smoke)) {
   message("Skipping ", sum(.is_smoke),
-          " smoke-test result file(s): ",
+          " smoke-test or first-stage result file(s): ",
           paste(basename(rds_files[.is_smoke]), collapse = ", "))
   rds_files <- rds_files[!.is_smoke]
 }

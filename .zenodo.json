@@ -1,0 +1,38 @@
+{
+  "title": "MR-CCC: Bayesian Mendelian Randomization for Causal Cell-Cell Communication (analysis code)",
+  "upload_type": "software",
+  "version": "1.0.3",
+  "license": "MIT",
+  "creators": [
+    {
+      "name": "Sarkar, Bitan",
+      "affiliation": "Department of Statistics, Texas A&M University",
+      "orcid": "0009-0000-5178-5934"
+    },
+    {
+      "name": "Ni, Yang",
+      "affiliation": "Department of Statistics and Data Sciences, The University of Texas at Austin",
+      "orcid": "0000-0003-0636-2363"
+    }
+  ],
+  "description": "Analysis code for MR-CCC, a Bayesian Mendelian randomization framework for causal ligand-receptor cell-cell communication with receptor-modulated ligand effects. Reproduces the simulation studies, the OneK1K real-data analysis, and all figures.",
+  "keywords": [
+    "Mendelian randomization",
+    "cell-cell communication",
+    "Bayesian variable selection",
+    "eQTL",
+    "single-cell"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/bitansa/MRCCC",
+      "relation": "isSupplementedBy",
+      "resource_type": "software"
+    },
+    {
+      "identifier": "10.5281/zenodo.19675075",
+      "relation": "requires",
+      "resource_type": "dataset"
+    }
+  ]
+}

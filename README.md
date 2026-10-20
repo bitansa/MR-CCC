@@ -101,6 +101,7 @@ BiocManager::install(c("GenomicRanges", "AUCell", "UCell", "GSVA"))
 | `convergence_diagnostics.R` | Trace figure (joint log-likelihood and running inclusion probability, all chains) for the declared discoveries, per-parameter R̂ table, and runtime benchmark. |
 | `posterior_sign_probabilities.R` | Posterior sign probabilities of the interaction effect and intervals conditional on inclusion, for the discoveries. |
 | `leave_one_instrument_out.R` | Refits each discovery dropping one instrument at a time. |
+| `first_stage_posterior.R` | Posterior summaries of the first-stage instrument effects (per-instrument and joint credible regions, variance explained), used by `real_data_analysis.R` when `.mrccc_first_stage <- TRUE`. |
 | `instrument_overlap_sensitivity.R` | Instrument-set diagnostics across all twenty pairs (number of instruments 5/10/20, genomic overlap between ligand and receptor windows, dosage correlation within and between instrument sets, a screen for instruments associated with the partner gene) and, for the main-text pair, the window sensitivity (±100/200/500 kb), the first-stage F profile under single-instrument removal, and a refit on disjoint instruments. |
 | `pathway_representation_sensitivity.R` | Refits under each of the six pathway-activity representations against the adaptive rule, and calibrates the adaptive rule against a pre-specified one on permuted outcomes. |
 | `simulation_mrccc.R` | Simulation scenarios S1–S3 (correctly specified model). |
@@ -144,6 +145,13 @@ source("Github Codes/posterior_sign_probabilities.R")
 source("Github Codes/leave_one_instrument_out.R")
 source("Github Codes/pathway_representation_sensitivity.R")
 ```
+
+**First-stage posterior.** To summarise the posterior of the instrument
+effects, rerun the primary analysis for the pair in a **fresh R session** with
+`.mrccc_first_stage <- TRUE` set before sourcing (see the header of
+`first_stage_posterior.R`). Keeping the draws uses no random numbers, so the
+run reproduces the primary analysis exactly; its outputs are prefixed
+`firststage_`, and its PIPs are checked against the primary output.
 
 `instrument_overlap_sensitivity.R` reloads all data itself and should be run
 in a **fresh R session**, after step 1 and once
@@ -271,6 +279,7 @@ so figures can be restyled or re-exported from the saved objects.
 | `Results/runtime_benchmark.csv` | `convergence_diagnostics.R` |
 | `Results/posterior_sign_probabilities_<C1>_<C2>.csv` | `posterior_sign_probabilities.R` |
 | `Results/leave_one_out_{summary,detail}_<C1>_<C2>.csv` | `leave_one_instrument_out.R` |
+| `Results/first_stage_posterior_<C1>_<C2>.csv` | `real_data_analysis.R` with `.mrccc_first_stage <- TRUE` (summaries by `first_stage_posterior.R`) |
 | `Results/overlap_{detail,summary}_all_pairs.csv`, `Results/instrument_count_sensitivity.csv`, `Results/selection_variant_{summary,detail}.csv`, `Results/leave_one_out_F_profile_<C1>_<C2>.csv`, `Results/sensitivity_<C1>_<C2>.csv` | `instrument_overlap_sensitivity.R` |
 | `Results/representation_{fixed,concord,null}_<C1>_<C2>.csv` | `pathway_representation_sensitivity.R` |
 | `Results/simulation_S1_S3_raw.csv`, `Results/simulation_table_S{1,2,3}.csv` | `simulation_mrccc.R` |

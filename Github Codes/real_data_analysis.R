@@ -257,6 +257,18 @@ stopifnot(
     (N_ITER - BURN_IN) %/% THIN >= 2L
 )
 
+## ---- Optional first-stage posterior ----------------------------------------
+## Setting .mrccc_first_stage <- TRUE before sourcing this file asks the
+## sampler to also return the draws of the first-stage instrument effects
+## (Pi_X, Pi_Z), which are summarised per triplet by first_stage_posterior.R
+## and written to Results/first_stage_posterior_<Cell1>_<Cell2>.csv. Storing
+## the draws uses no random numbers, so every other result of such a run is
+## identical to that of the primary run; the run's outputs are prefixed
+## "firststage_" so that they never overwrite the primary files, and are
+## compared with them at the end.
+SAVE_FIRST_STAGE <- isTRUE(get0(".mrccc_first_stage", ifnotfound = FALSE))
+if (SAVE_FIRST_STAGE) source("Github Codes/first_stage_posterior.R")
+
 ## ---- Number of chains and starting values --------------------------------
 ## The primary analysis runs N_CHAINS chains per triplet from OVERDISPERSED
 ## starting values and reports the pooled posterior. Convergence is assessed
@@ -872,6 +884,7 @@ bfdr_threshold_set <- function(pip, alpha) {
 ##   8. Standardize effect sizes and store output row
 ############################################################
 Output_list <- vector("list", nrow(lr_filtered))
+First_stage_list <- list()
 out_idx     <- 0
 
 # Triplets that cannot be built are skipped. The reasons are counted so that
@@ -1080,7 +1093,8 @@ for (run in seq_len(nrow(lr_filtered))) {
       ridge   = 1e-8,
       init_gamma = if (cc %% 2L == 0L) 0L else 1L,
       init_scale = INIT_SCALE,
-      verbose    = FALSE
+      verbose    = FALSE,
+      save_first_stage = SAVE_FIRST_STAGE
     )
   })
 
@@ -1203,6 +1217,22 @@ for (run in seq_len(nrow(lr_filtered))) {
   Effect_lo <- .eff_q[1, ]
   Effect_hi <- .eff_q[2, ]
   rm(.eff_mat)
+
+  # ---- Step 8g (optional): first-stage posterior ---------------------------
+  if (SAVE_FIRST_STAGE) {
+    First_stage_list[[length(First_stage_list) + 1L]] <- dplyr::bind_cols(
+      tibble::tibble(
+        ligand_col_name   = ligand_gene_name,
+        receptor_col_name = receptor_gene_name,
+        pathway_name      = pathway_name,
+        PIP               = mean(g_dr),
+        F_L               = F_L,
+        F_R               = F_R
+      ),
+      first_stage_summary(fits, "Pi_X_draws", G, X_c, "L"),
+      first_stage_summary(fits, "Pi_Z_draws", H, Z_c, "R")
+    )
+  }
 
   # ---- Step 9: Store output row ----
   out_idx <- out_idx + 1
@@ -1424,11 +1454,17 @@ dir.create("Results", showWarnings = FALSE)
 ## too, for the same reason, and is prefixed in the same way.
 .out_prefix <- if (isTRUE(.mrccc_truncated) || N_ITER != 100000L ||
                    !isTRUE(all.equal(LD_R2_MAX, 0.8))) "smoke_" else ""
+if (SAVE_FIRST_STAGE) .out_prefix <- paste0(.out_prefix, "firststage_")
 .rds_path   <- paste0("Results/", .out_prefix, Cell1, "_", Cell2, "_MR_CCC.rds")
 
 saveRDS(Output_MR_CCC, file = .rds_path)
 Output_MR_CCC <- readRDS(.rds_path)
 cat("Results written:", .rds_path, "\n")
+
+if (SAVE_FIRST_STAGE) {
+  write_first_stage_posterior(First_stage_list, Output_MR_CCC, Cell1, Cell2,
+                              .out_prefix)
+}
 
 ############################################################
 ## SECTION 7: PLOTS
