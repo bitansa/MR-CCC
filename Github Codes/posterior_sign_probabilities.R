@@ -36,7 +36,7 @@
 ##   source("Github Codes/posterior_sign_probabilities.R")
 ##
 ## COST. Only the declared discoveries are refitted, and the
-## sampler itself is fast (~14 s per chain at n = 651); the
+## sampler itself is fast (~14 s per chain at n = 651). The
 ## time goes on rebuilding pathway scores, roughly 2-3
 ## minutes per triplet, so a few minutes per discovery.
 ##

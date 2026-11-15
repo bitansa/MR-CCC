@@ -73,7 +73,7 @@ library(GSVA)
              # exactly rather than approximating it with a single chain.
              "N_CHAINS", "INIT_SCALE", "gelman_rubin",
              "pip_thresh", "bayes_fdr",
-             # Instrument selection is LD-clumped; both objects are defined
+             # Instrument selection is LD-clumped. Both objects are defined
              # by real_data_analysis.R alongside get_SNP_matrix().
              "LD_R2_MAX", "clump_by_ld")
 .missing <- .needed[!vapply(.needed, exists, logical(1))]
@@ -209,7 +209,7 @@ fit_one <- function(X, Z, Y, G, H, V) {
   # cross-product matrix is numerically singular. The sampler then fails in
   # inv_sympd(). That is a property of the representation on that triplet,
   # not an error in the analysis, and it must not terminate a sweep over six
-  # representations and every triplet. Such fits are skipped and counted; the
+  # representations and every triplet. Such fits are skipped and counted. The
   # count is reported at the end of each part so the number of skips is
   # visible rather than silent.
   if (!all(is.finite(as.numeric(Y)))) return(NULL)
@@ -324,7 +324,7 @@ for (run in seq_len(nrow(lr_filtered))) {
   trip_cache[[length(trip_cache) + 1L]] <- tr
 
   chosen <- select_adaptive(tr$Y_list, tr$X)
-  # The adaptive arm is meant to reproduce the primary fit; a different
+  # The adaptive arm is meant to reproduce the primary fit. A different
   # representation is reported (the refit proceeds with the one chosen here).
   check_primary_representation(tr$ligand, tr$receptor, tr$pathway, chosen)
 

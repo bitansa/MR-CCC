@@ -11,20 +11,20 @@
 ##        source("Github Codes/simulation_mrccc.R")
 ##
 ## Methods compared:
-##   OLS    -- naive OLS with interaction; no IV correction
+##   OLS    -- naive OLS with interaction. No IV correction
 ##   MVMR   -- Multivariable MR (frequentist 2SLS)
 ##   MR-BMA -- Bayesian Model Averaging MR (Zuber et al., 2020)
 ##   MR-CCC -- Bayesian 2SLS with spike-and-slab prior (this paper)
 ##
 ## Scoring convention:
-##   OLS   : score = 1 - p_F  (joint F-test, H0: beta_X = beta_XZ = 0;
+##   OLS   : score = 1 - p_F  (joint F-test, H0: beta_X = beta_XZ = 0,
 ##            reject if p_F <= alpha_sig)
-##   MVMR  : score = 1 - p_t  (t-test, H0: beta_X = 0;
-##            no interaction term; reject if p_t <= alpha_sig)
+##   MVMR  : score = 1 - p_t  (t-test, H0: beta_X = 0,
+##            no interaction term. Reject if p_t <= alpha_sig)
 ##   MR-BMA: score = MIP_X    (marginal inclusion probability
-##            for ligand X; reject if MIP_X > pip_thr)
+##            for ligand X. Reject if MIP_X > pip_thr)
 ##   MR-CCC: score = PIP      (posterior inclusion probability
-##            P(gamma=1|data); reject if PIP > pip_thr)
+##            P(gamma=1|data). Reject if PIP > pip_thr)
 ############################################################
 # rm(list = ls())
 # gc()
@@ -191,7 +191,7 @@ pi_val        <- 0.5                           # true first-stage eQTL effect si
 # method_levels (display order of the four methods) is defined once in
 # figure_style.R, alongside the method palette it must agree with.
 # Simulation scenarios:
-#   S1 -- null (no causal communication; beta_X = beta_XZ = 0)
+#   S1 -- null (no causal communication, beta_X = beta_XZ = 0)
 #   S2 -- signal with receptor-modulated interaction (beta_X = beta_XZ = 0.3)
 #   S3 -- signal without interaction (beta_X = 0.3, beta_XZ = 0)
 scenario_list <- list(
@@ -224,7 +224,7 @@ generate_data <- function(n             = 300,
                           pi_val        = 0.5,
                           seed          = NULL) {
   # The generator is named so that a session left in L'Ecuyer-CMRG by
-  # simulation_misspecification.R cannot change the replicate data; in a
+  # simulation_misspecification.R cannot change the replicate data. In a
   # fresh session Mersenne-Twister is already the default, so this is
   # identical to set.seed(seed).
   if (!is.null(seed)) set.seed(seed, kind = "Mersenne-Twister")
@@ -267,7 +267,7 @@ safe_coef <- function(fit, term) {
   unname(cf[term])
 }
 # Format mean (SD) of a numeric vector for summary tables.
-# Finite values only; returns "---" if nothing is finite.
+# Finite values only. Returns "---" if nothing is finite.
 fmt_mean_sd <- function(x, digits = 3) {
   x <- x[is.finite(x)]
   if (length(x) == 0) return("---")
@@ -292,7 +292,7 @@ fmt_mcse <- function(x, digits = 3) {
 ############################################################
 ## n_iter and burn_in are arguments so that the misspecification study can
 ## run the same function with a longer chain. Scenarios S1-S3 use the
-## defaults; see the CHAIN LENGTH note in USER SETTINGS for the reasoning.
+## defaults. See the CHAIN LENGTH note in USER SETTINGS for the reasoning.
 run_methods <- function(dat, pip_thr = 0.5, alpha_sig = 0.05,
                         n_iter = 20000, burn_in = 2000) {
   
@@ -305,7 +305,7 @@ run_methods <- function(dat, pip_thr = 0.5, alpha_sig = 0.05,
   # CENTERING: subtract sample means from x, z, y.
   # Enforces the paper's centering assumption exactly in each
   # sample. Slopes beta_X and beta_XZ are invariant to this
-  # location shift; only the intercept mu changes.
+  # location shift. Only the intercept mu changes.
   # ----------------------------------------------------------
   x <- as.numeric(X) - mean(X)
   z <- as.numeric(Z) - mean(Z)
@@ -326,14 +326,14 @@ run_methods <- function(dat, pip_thr = 0.5, alpha_sig = 0.05,
   ##
   ## Model:  Y_i = mu + beta_X X_i + beta_Z Z_i +
   ##               beta_XZ X_i Z_i + V_i' alpha_Y + eps_i
-  ## Fit via OLS (no IV correction; confounding ignored).
+  ## Fit via OLS (no IV correction, confounding ignored).
   ##
   ## Communication score: 1 - p_F
   ##   Joint F-test  H0: beta_X = beta_XZ = 0
   ##   Contrast matrix C selects (beta_X, beta_XZ) from coef.
   ##   F  = (1/2)(C beta)' [C vcov C']^{-1} (C beta)
   ##   p_F = P(F(2, df.res) > F)
-  ##   score = 1 - p_F;   reject if p_F <= alpha_sig
+  ##   score = 1 - p_F.   Reject if p_F <= alpha_sig
   ##########################################################
   ols_fit     <- lm(Y ~ X * Z + ., data = df)
   OLS_beta_X  <- safe_coef(ols_fit, "X")
@@ -374,13 +374,13 @@ run_methods <- function(dat, pip_thr = 0.5, alpha_sig = 0.05,
   ##
   ## Second-stage design matrix (additive, no interaction):
   ##   W = [1_n | Xhat_c | Zhat_c | V]
-  ##   theta = (W'W)^{-1} W'y;   theta[2] = beta_X
+  ##   theta = (W'W)^{-1} W'y, and theta[2] = beta_X
   ##
   ## Communication score: 1 - p_t
   ##   t-test  H0: beta_X = 0
   ##   t = beta_X_hat / se(beta_X_hat)
   ##   p_t = 2 * P(t(n - p) > |t|)
-  ##   score = 1 - p_t;   reject if p_t <= alpha_sig
+  ##   score = 1 - p_t.   Reject if p_t <= alpha_sig
   ##########################################################
   df_fsX_mv <- data.frame(
     X = x,
@@ -437,7 +437,7 @@ run_methods <- function(dat, pip_thr = 0.5, alpha_sig = 0.05,
   ##   MACE -- model-averaged causal effect per exposure
   ##
   ## NOTE: MR-BMA does not model the ligand-receptor
-  ## interaction beta_XZ; that parameter is not estimable
+  ## interaction beta_XZ. That parameter is not estimable
   ## from this method (beta_XZ_hat is set to NA).
   ##
   ## Communication score: MIP_X
@@ -491,14 +491,14 @@ run_methods <- function(dat, pip_thr = 0.5, alpha_sig = 0.05,
   ##########################################################
   ## (4) MR-CCC  (Bayesian 2SLS with spike-and-slab prior)
   ##
-  ## Separate first-stage models: X ~ G + V;  Z ~ H + V
+  ## Separate first-stage models: X ~ G + V and Z ~ H + V
   ## (each exposure instrumented only by its own gene's IVs,
   ##  consistent with the structural CCC model).
   ##
   ## Spike-and-slab prior on beta = (beta_X, beta_XZ)':
   ##   gamma = 1  =>  beta ~ N(0, gBeta * sigma_Y^2 * D0^{-1})
   ##   gamma = 0  =>  beta ~ N(0, nu1 * gBeta * sigma_Y^2 * D0^{-1})
-  ##                  (near-zero spike; nu1 = 1e-4)
+  ##                  (near-zero spike, nu1 = 1e-4)
   ## where D0 = diag(||X^*||^2, ||X^* o Z^*||^2) is a fixed plug-in scale,
   ## computed once from the least-squares first-stage fits (X^*, Z^*).
   ##
@@ -519,7 +519,7 @@ run_methods <- function(dat, pip_thr = 0.5, alpha_sig = 0.05,
     # Chain length is passed in by the caller. thin = 1 retains every draw:
     # thinning discards recorded draws without shortening the chain, so it
     # can only reduce the Monte Carlo precision of the PIP. One chain is run
-    # from the sampler's default deterministic start; real_data_analysis.R
+    # from the sampler's default deterministic start. real_data_analysis.R
     # instead pools four dispersed chains of 100,000 sweeps.
     n_iter  = n_iter,
     burn_in = burn_in,
@@ -535,7 +535,7 @@ run_methods <- function(dat, pip_thr = 0.5, alpha_sig = 0.05,
   MR_beta_XZ <- res_mr$Beta_XZ_mean
 
   # Monte Carlo standard error of the PIP, by non-overlapping batch means.
-  # Returned to the caller; simulation_misspecification.R writes it for
+  # Returned to the caller. simulation_misspecification.R writes it for
   # every S4-S7 replicate, while run_one_replicate() (S1-S3) does not keep
   # it. See the note on chain length in the USER SETTINGS section.
   MR_pip_mcse <- local({
@@ -651,7 +651,7 @@ run_one_replicate <- function(scenario_name,
 ## is the only thing running. When it shares the machine with the twenty-pair
 ## real-data sweep, or with an interactive session running the sensitivity
 ## analyses, that starves them. Assigning .mrccc_sim_cores before sourcing
-## caps the count; the value actually in use is printed either way.
+## caps the count. The value actually in use is printed either way.
 .default_sim_cores <- function() {
   if (exists(".mrccc_sim_cores")) {
     max(1L, min(as.integer(.mrccc_sim_cores), detectCores()))
@@ -716,7 +716,7 @@ run_simulation_grid <- function(sample_sizes  = c(500, 1000, 10000, 30000),
                 jobs$n[k], ", seed = ", jobs$seed[k], "): ",
                 conditionMessage(e))
         pars <- scenario_list[[jobs$scenario[k]]]
-        # Design columns only; bind_rows() fills every result column with NA.
+        # Design columns only. bind_rows() fills every result column with NA.
         structure(
           data.frame(
             scenario     = jobs$scenario[k],
@@ -781,7 +781,7 @@ make_scenario_tables <- function(df_long) {
 ############################################################
 ## RUN SIMULATION
 ##
-## Everything above this line only DEFINES functions and settings; the
+## Everything above this line only DEFINES functions and settings. The
 ## expensive computation starts here. Sourcing with
 ##
 ##   .run_s1_s3 <- FALSE
@@ -839,14 +839,14 @@ cat("\nTables written to Results/ (simulation_S1_S3_raw.csv,",
 ## FIGURES
 ##
 ## Each figure is built by a function in figure_functions.R (sourced
-## through figure_style.R), which is the single definition of that figure;
+## through figure_style.R), which is the single definition of that figure.
 ## regenerate_figures.R calls the same functions on the saved raw CSV.
 ## Theme, palettes and notation come from figure_style.R. Estimates are on
 ## the raw scale with known truths, so the un-superscripted hat notation is
 ## used throughout.
 ##
-## p_score  -- communication score per method (OLS: 1 - p_F; MVMR: 1 - p_t;
-##             MR-BMA: MIP_X; MR-CCC: PIP), red dashed line at the true
+## p_score  -- communication score per method (OLS: 1 - p_F, MVMR: 1 - p_t,
+##             MR-BMA: MIP_X, MR-CCC: PIP), red dashed line at the true
 ##             communication state (0 for S1, 1 for S2/S3)
 ## p_betaX  -- beta_X estimates, red dashed line at the true value
 ## p_betaXZ -- beta_XZ estimates for the two methods that model the
@@ -865,7 +865,7 @@ print(p_betaXZ)
 ##
 ## Vector PDF via cairo_pdf through save_fig() (figure_style.R), which
 ## embeds fonts. A vector figure has no fixed resolution, so it satisfies
-## any dots-per-inch requirement exactly; where a journal asks for EPS
+## any dots-per-inch requirement exactly. Where a journal asks for EPS
 ## instead, convert from these files rather than re-rendering at a raster
 ## resolution.
 ############################################################

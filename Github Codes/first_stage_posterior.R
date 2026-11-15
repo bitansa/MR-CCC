@@ -38,7 +38,7 @@
 ##   p_joint  upper chi-square(k) tail probability of d2. Under
 ##            the approximately normal posterior, 0 lies outside
 ##            the joint 95% credible ellipsoid exactly when
-##            p_joint < 0.05; this is the joint counterpart of
+##            p_joint < 0.05. This is the joint counterpart of
 ##            n_excl0, which looks at one instrument at a time
 ##   r2_med, r2_lo, r2_hi
 ##            posterior median and 95% interval of the share of

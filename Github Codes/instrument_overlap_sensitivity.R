@@ -20,7 +20,7 @@
 ##
 ## The script runs in two tiers:
 ##
-##   TIER 1 (cheap; no MCMC)
+##   TIER 1 (cheap, no MCMC)
 ##     For every ordered cell-type pair and every triplet,
 ##     record: whether the two cis windows intersect, whether
 ##     the selected instrument sets share SNPs, and how many
@@ -28,7 +28,7 @@
 ##     Also records first-stage F-statistics, which are
 ##     required separately for the instrument-strength assessment.
 ##
-##   TIER 2 (expensive; re-runs the Gibbs sampler)
+##   TIER 2 (expensive, re-runs the Gibbs sampler)
 ##     For one focal pair, re-runs MR-CCC after removing
 ##     cross-associated SNPs from BOTH instrument sets, and
 ##     compares PIPs and discovery decisions against the
@@ -59,7 +59,7 @@
 ##                                    -- first-stage F under single drops
 ##   sensitivity_<Cell1>_<Cell2>.csv  -- primary vs disjoint run
 ##   sessionInfo_instrument_overlap_sensitivity.txt
-## The first three cover all twenty pairs; the rest the focal pair only.
+## The first three cover all twenty pairs, the rest the focal pair only.
 ## Each name is prefixed "smoke_" when LD_R2_MAX is not the canonical 0.8.
 ##
 ## Run in a FRESH R session: the script reloads all data itself.
@@ -90,7 +90,7 @@ library(Matrix)
 ## will load successfully while the dependency is absent.
 ##
 ## If that fails, check that R and Bioconductor versions are compatible:
-##   R.version.string ; BiocManager::version() ; BiocManager::valid()
+##   R.version.string, BiocManager::version(), BiocManager::valid()
 library(GenomicRanges)
 
 # Fail early with an actionable message rather than deep inside the sweep.
@@ -133,13 +133,13 @@ FOCAL_CELL1 <- "NKCells"
 FOCAL_CELL2 <- "MonocytesCells"
 
 # Ordered pairs for the Tier 1 sweep. NULL means all 20 (5 x 4).
-# This is the ONLY assignment of TIER1_PAIRS in the script; it must not
+# This is the ONLY assignment of TIER1_PAIRS in the script. It must not
 # be assigned again further down, because a later assignment would
 # silently override this one.
 TIER1_PAIRS <- NULL
 
 # Run the expensive Tier 2 re-run? Set FALSE to do diagnostics only.
-# Tier 1 is cheap (no MCMC) and can be run on its own; Tier 2 re-runs
+# Tier 1 is cheap (no MCMC) and can be run on its own. Tier 2 re-runs
 # the Gibbs sampler and should be enabled only when the diagnostic has
 # identified triplets worth re-running. Tier 2 also compares against the
 # primary results in Results/<Cell1>_<Cell2>_MR_CCC.rds, so it must run after
@@ -215,11 +215,11 @@ stopifnot(PRIMARY_K %in% K_GRID)
 #                imposes no threshold at all, which is one reason
 #                instrument strength is low: many genes have no lead
 #                cis-eQTL at p < 0.05. Imposing the filter raises mean strength but shrinks the
-#                triplet universe; the question is whether the discovery
+#                triplet universe. The question is whether the discovery
 #                set survives.
 #
 # WINDOW_BP sets the window used by the PRIMARY diagnostic in Section 4
-# and by Tier 2; it must stay at 200000 to match real_data_analysis.R.
+# and by Tier 2. It must stay at 200000 to match real_data_analysis.R.
 # The alternative settings live in SELECTION_VARIANTS below and are applied
 # only within Section 4c, so nothing else in this script is affected.
 WINDOW_BP <- 200000
@@ -231,7 +231,7 @@ WINDOW_BP <- 200000
 #
 # A lead-eQTL p-value filter is supported through the lead_p_max argument
 # of get_snp_selection() (default NA, i.e. no filter) but is not swept
-# here; sensitivity to instrument strength is examined directly in
+# here. Sensitivity to instrument strength is examined directly in
 # simulation scenario S4.
 SELECTION_VARIANTS <- list(
   list(label = "narrow_100kb",  window_bp = 100000, lead_p_max = NA_real_),
@@ -240,7 +240,7 @@ SELECTION_VARIANTS <- list(
 )
 
 # Fixed seed (the value used by the other scripts). Each script draws its own
-# stream; no stream is shared between scripts. donor.rda, loaded below,
+# stream. No stream is shared between scripts. donor.rda, loaded below,
 # contains a saved .Random.seed, which load() restores in the global
 # environment, so the draws made after loading (the Tier 2 sampler and AUCell
 # rankings) follow that saved state and are reproducible from it.
@@ -418,7 +418,7 @@ cat("Converting genotypes to dosage (once)...\n")
 genotype.mat.full <- matrix(NA_real_,
                             nrow = nrow(genotype_raw),
                             ncol = ncol(genotype_raw))
-# Missing calls ("./.") stay NA here; they are imputed per pair, after the
+# Missing calls ("./.") stay NA here. They are imputed per pair, after the
 # pair's donor QC, by the SNP's mean dosage -- as in real_data_analysis.R.
 genotype.mat.full[genotype_raw == "0/0"] <- 0
 genotype.mat.full[genotype_raw == "0/1"] <- 1
@@ -466,7 +466,7 @@ valid_genes <- rownames(RNA.count_BCells)
 ##
 ## build_covariates(): donor-level covariates V (sex, 10-year age bins,
 ##   PC1-PC3), used in the eQTL screen, the F statistic and the model.
-## centre_cols(): column centring; the model has no first-stage intercept, so
+## centre_cols(): column centring. The model has no first-stage intercept, so
 ##   G, H and V are centred before they reach the sampler, as X, Z, Y are.
 ## orient_pc1(): fixes the arbitrary sign of the PC1 pathway score so that
 ##   higher scores mean higher mean expression of the pathway genes.
@@ -525,7 +525,7 @@ prepare_pair <- function(Cell1, Cell2) {
   # ---- Subset the pre-computed dosage matrix, then carrier filter ----
   # The filter must be recomputed here because carrier rates depend on
   # which donors survived this pair's QC. It is evaluated over called
-  # genotypes; missing calls are then imputed by the SNP's mean dosage.
+  # genotypes. Missing calls are then imputed by the SNP's mean dosage.
   gmat <- genotype.mat.full[, donor.filter, drop = FALSE]
   keep <- rowMeans(gmat > 0, na.rm = TRUE) > 0.05
   keep[is.na(keep)] <- FALSE
@@ -566,7 +566,7 @@ gene.promoter.ref <- promoter_ref_for(WINDOW_BP)
 ##
 ## Reproduces exactly the rule used in real_data_analysis.R.
 ## CellPhoneDB stores a classification string such as
-## "Signaling by Interleukin"; the trailing keyword is extracted
+## "Signaling by Interleukin". The trailing keyword is extracted
 ## and matched (case-insensitively) against MSigDB Reactome
 ## gene-set names. Note this is a REGEX MATCH on gs_name, not an
 ## equality test -- one CellPhoneDB class maps to many Reactome
@@ -579,7 +579,7 @@ gene.promoter.ref <- promoter_ref_for(WINDOW_BP)
 ############################################################
 pathway_gene_ids_for <- function(pathway_name, RNA_mat_receiver, key_tbl) {
   keyword <- sub(".*by\\s+", "", pathway_name)
-  # An empty keyword would match every gene set; the primary skips such rows.
+  # An empty keyword would match every gene set. The primary skips such rows.
   if (!nzchar(keyword)) return(character(0))
   hits <- key_tbl %>%
     dplyr::filter(str_detect(gs_name, regex(keyword, ignore_case = TRUE)))
@@ -610,9 +610,9 @@ pathway_gene_ids_for <- function(pathway_name, RNA_mat_receiver, key_tbl) {
 ############################################################
 .sel_cache <- new.env(parent = emptyenv())
 
-# Greedy LD clumping in p-value order; see the fuller comment on the copy in
+# Greedy LD clumping in p-value order. See the fuller comment on the copy in
 # real_data_analysis.R. `cand` holds row indices into `geno`, strongest
-# first; returns the kept indices in the same order.
+# first. Returns the kept indices in the same order.
 #
 # KEEP IN SYNC with clump_by_ld() in real_data_analysis.R.
 clump_by_ld <- function(cand, geno, keep_max, r2_max) {
@@ -649,7 +649,7 @@ get_snp_selection <- function(gene_id, RNA_mat_adj, P,
   # (as.character(2e5) is "2e+05", as.character(200000L) is "200000").
   #
   # keep_max is part of the key too. Section 4 asks for the top 20 so that
-  # the k-sensitivity can subset; Tier 2 asks for the top 10. Without
+  # the k-sensitivity can subset. Tier 2 asks for the top 10. Without
   # keep_max in the key, whichever ran first would be served to the other.
   # The LD threshold is in the key for the same reason: a selection clumped
   # at one threshold must never be served to a request made at another.
@@ -679,7 +679,7 @@ get_snp_selection <- function(gene_id, RNA_mat_adj, P,
   snp.pval <- rep(NA_real_, length(snp.ind))
   for (j in seq_along(snp.ind)) {
     g_j <- P$gmat[snp.ind[j], ]
-    # A SNP with no variation among these donors has no eQTL p-value; lm()
+    # A SNP with no variation among these donors has no eQTL p-value. lm()
     # would drop its term and row 2 would belong to a covariate.
     if (var(g_j) == 0) next
     lm.j <- lm(RNA_mat_adj[gene_id, ] ~ g_j + P$V)
@@ -696,7 +696,7 @@ get_snp_selection <- function(gene_id, RNA_mat_adj, P,
   # to individual instruments: if the strongest cis-eQTL for this gene does
   # not reach lead_p_max, the gene contributes no instruments at all and
   # every triplet involving it drops out. This is an alternative selection
-  # strategy; the primary analysis passes lead_p_max = NA and therefore
+  # strategy. The primary analysis passes lead_p_max = NA and therefore
   # skips this block entirely.
   if (is.finite(lead_p_max) && min(snp.pval[ok]) > lead_p_max) {
     assign(ck, NULL, envir = .sel_cache); return(NULL)
@@ -766,7 +766,7 @@ first_stage_F <- function(snp_idx, gene_id, RNA_mat_adj, P) {
 
 ## Largest absolute pairwise dosage correlation between two instrument
 ## index sets. Called with the same set twice it returns the strongest
-## within-set correlation, excluding the diagonal; called with the two
+## within-set correlation, excluding the diagonal. Called with the two
 ## different sets it returns the strongest cross-set correlation, where
 ## the diagonal carries no special meaning and is kept. Returns NA when
 ## there is no pair to correlate, or when a SNP is monomorphic in the
@@ -1066,7 +1066,7 @@ cat("\nWritten to Results/", .out_prefix, "instrument_count_sensitivity.csv\n",
 ## only the improvement in F would be misleading.
 ##
 ## No MCMC runs here. This section establishes WHICH variants
-## change the instrument sets enough to be worth re-running;
+## change the instrument sets enough to be worth re-running.
 ## Tier 2 does the re-running.
 ##
 ## The second variant, "primary_200kb", reproduces the
@@ -1188,7 +1188,7 @@ cat("\nWritten to Results/", .out_prefix, "selection_variant_summary.csv\n",
 ##
 ## The discriminating quantity is the first-stage partial F recomputed on
 ## the reduced instrument set. If F collapses alongside the PIP, reading (a)
-## is demonstrated rather than asserted; if F is unchanged while the PIP
+## is demonstrated rather than asserted. If F is unchanged while the PIP
 ## moves, reading (b) is the live possibility and must be reported as such.
 ##
 ## No MCMC is involved: this is two linear models per dropped instrument, so
@@ -1231,11 +1231,11 @@ loo_F_profile <- function(Cell1 = FOCAL_CELL1, Cell2 = FOCAL_CELL2) {
     F_R_full <- first_stage_F(primR, rec, P$adj2, P)
 
     # One row per dropped instrument. `side` names the block the instrument
-    # belongs to; F_same is that block's F after the drop and is the column
+    # belongs to. F_same is that block's F after the drop and is the column
     # that matters, while F_other is recorded unchanged so that a reader can
     # confirm the drop touched only one first stage. `dropped` is the SNP
     # identifier where the genotype matrix carries one, and otherwise the
-    # side prefix and the instrument's rank (L1, L2, ...; R1, R2, ...).
+    # side prefix and the instrument's rank (L1, L2, ..., R1, R2, ...).
     snp_lab <- function(idx, s, prefix) {
       id <- if (is.null(P$snp_id)) NA_character_ else P$snp_id[idx[s]]
       if (is.na(id) || !nzchar(id)) paste0(prefix, s) else id
@@ -1325,7 +1325,7 @@ loo_F <- loo_F_profile()
 ## Removing these SNPs can therefore delete causal signal as readily as
 ## confounding, which is why the primary analysis retains them and this
 ## section is reported as a stress test. A discovery that survives it has
-## been shown not to depend on cross-associated instruments at all; one
+## been shown not to depend on cross-associated instruments at all. One
 ## that does not survive is fragile rather than refuted, and the
 ## leave-one-out profile is the diagnostic that distinguishes the two.
 ##
@@ -1458,7 +1458,7 @@ if (RUN_TIER2) {
     n_dropR <- length(selR$idx) - length(keepR)
 
     # A triplet with no surviving instrument on either side cannot
-    # be estimated; it is recorded rather than silently skipped.
+    # be estimated. It is recorded rather than silently skipped.
     if (length(keepL) == 0 || length(keepR) == 0) {
       oi <- oi + 1
       out_list[[oi]] <- tibble(
@@ -1565,7 +1565,7 @@ if (RUN_TIER2) {
 
     # The adaptive representation is re-evaluated here. A choice that
     # differs from the primary analysis means a different outcome variable,
-    # and is reported; the comparison proceeds.
+    # and is reported. The comparison proceeds.
     if ("representation" %in% names(primary_raw) &&
         "representation" %in% names(sens)) {
       .rep_cmp <- primary_raw %>%
@@ -1629,7 +1629,7 @@ if (RUN_TIER2) {
 ## first-stage strength, so an attenuated effect may reflect
 ## lost power rather than removed bias. A discovery that
 ## survives with a comparable F is strong evidence that the
-## primary finding was not driven by shared instruments; a
+## primary finding was not driven by shared instruments. A
 ## discovery that weakens while F collapses is inconclusive
 ## rather than refuted.
 ############################################################

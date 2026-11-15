@@ -18,7 +18,7 @@
 # picks up where it stopped. Delete a pair's .rds to force a re-run.
 #
 # The pairs are ordered so that the main-text axis runs first and the
-# remaining nineteen follow; if the sweep has to be cut short, the pairs
+# remaining nineteen follow. If the sweep has to be cut short, the pairs
 # that matter most are already done.
 
 set -u

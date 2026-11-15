@@ -69,7 +69,7 @@ suppressPackageStartupMessages({
              "get_SNP_matrix", "gsva_scores", "mr_ccc_gibbs",
              "N_ITER", "BURN_IN", "THIN", "N_CHAINS", "INIT_SCALE",
              "pip_thresh", "Cell1", "Cell2",
-             # Instrument selection is LD-clumped; both objects are defined
+             # Instrument selection is LD-clumped. Both objects are defined
              # by real_data_analysis.R alongside get_SNP_matrix().
              "LD_R2_MAX", "clump_by_ld")
 .missing <- .needed[!vapply(.needed, exists, logical(1))]
@@ -141,7 +141,7 @@ for (i in seq_len(nrow(TARGETS))) {
   lab <- paste0(TARGETS$ligand_col_name[i], "-", TARGETS$receptor_col_name[i])
   cat("  [", i, "/", nrow(TARGETS), "] ", lab, "\n", sep = "")
 
-  ## Pathway scores are the expensive part; build them once per triplet.
+  ## Pathway scores are the expensive part. Build them once per triplet.
   inp <- build_triplet_inputs(TARGETS$ligand_col_name[i],
                               TARGETS$receptor_col_name[i],
                               TARGETS$pathway_name[i])
@@ -159,7 +159,7 @@ for (i in seq_len(nrow(TARGETS))) {
 
   ## Drop each ligand instrument in turn. A gene with a single instrument
   ## cannot have it dropped (the model needs >= 1), so it is skipped and
-  ## flagged; this happens for genes where selection returned only one SNP.
+  ## flagged. This happens for genes where selection returned only one SNP.
   drops <- list()
   if (nL >= 2L) {
     for (j in seq_len(nL)) {

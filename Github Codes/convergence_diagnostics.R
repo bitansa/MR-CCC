@@ -78,7 +78,7 @@ if (length(.missing) > 0) {
 ## triplet universe or a non-canonical clumping threshold) writes to names
 ## prefixed "smoke_", by the rule used in real_data_analysis.R, so that a
 ## check never overwrites a reported result. The prefix set by the primary
-## script is reused; the rule is re-evaluated on the inherited settings.
+## script is reused. The rule is re-evaluated on the inherited settings.
 .out_prefix <- if ((exists(".out_prefix") && identical(.out_prefix, "smoke_")) ||
                    isTRUE(get0(".mrccc_truncated", ifnotfound = FALSE)) ||
                    N_ITER != 100000L ||
@@ -127,7 +127,7 @@ stopifnot(
 ## the indicator alongside it means the figure speaks directly to the
 ## quantity that decides a discovery.
 ##
-## "Beta_X" and "Beta_XZ" may be added; they are always present in the
+## "Beta_X" and "Beta_XZ" may be added. They are always present in the
 ## diagnostic table regardless of what is plotted.
 TRACE_PARS <- c("loglik", "gamma")
 
@@ -148,7 +148,7 @@ stopifnot(
 ##   FLAGGED SET: every triplet whose R-hat exceeds 1.01 on any monitored
 ##   parameter in the primary output. These are included DELIBERATELY.
 ##   Presenting trace plots only for well-behaved triplets while others carry
-##   flags would be selective; a reader assessing convergence should see
+##   flags would be selective. A reader assessing convergence should see
 ##   precisely the cases the diagnostic singled out.
 ##
 ## TRACE_SET controls which triplets are drawn:
@@ -205,7 +205,7 @@ pick_triplets <- function(out, n_each = 1L) {
 
 ## Gelman-Rubin R-hat for a list of equal-length chains (Gelman & Rubin,
 ## 1992). Values near 1 indicate that between-chain and within-chain
-## variance agree; a common working rule is R-hat < 1.01.
+## variance agree. A common working rule is R-hat < 1.01.
 gelman_rubin <- function(chains) {
   m <- length(chains); n <- length(chains[[1]])
   if (m < 2 || n < 2) return(NA_real_)
@@ -294,7 +294,7 @@ for (i in seq_len(nrow(sel))) {
     )
 
     # ---- Display series ------------------------------------------------
-    # Only the series named in TRACE_PARS are carried into the figure; the
+    # Only the series named in TRACE_PARS are carried into the figure. The
     # diagnostics above cover every parameter regardless.
     if (!(par %in% TRACE_PARS)) next
 
@@ -356,7 +356,7 @@ print(as.data.frame(diag_tab %>% mutate(across(where(is.numeric), ~round(.x, 4))
 ## TRACE PLOT
 ##
 ## Built by plot_trace() in figure_functions.R (sourced through
-## figure_style.R), which is the single definition of this figure;
+## figure_style.R), which is the single definition of this figure.
 ## regenerate_figures.R calls the same function on the saved trace_tab.
 ## Theme, chain colours (Okabe-Ito) and the iteration axis (at most four
 ## breaks, in thousands) come from figure_style.R.
@@ -372,7 +372,7 @@ save_fig(p_trace, paste0(.out_prefix, "convergence_trace_", Cell1, "_", Cell2),
 ## outcome block, each of which forms cross-products of an n x p design and
 ## inverts a p x p matrix. With p_G, p_H and p_V small and fixed, the cost is
 ## therefore LINEAR in the number of donors n and linear in the number of
-## iterations; triplets are independent and embarrassingly parallel.
+## iterations. Triplets are independent and embarrassingly parallel.
 ############################################################
 bench_n <- c(250, 500, 1000, 2000)
 bench <- lapply(bench_n, function(nn) {

@@ -9,7 +9,7 @@
 ## (convergence_diagnostics.R) -- takes its theme, colours, point shapes,
 ## mathematical notation and export settings from this file. No other
 ## script defines a theme, a palette, a plotmath label for a model quantity,
-## or a call to ggsave(); they source this file and use what it provides.
+## or a call to ggsave(). They source this file and use what it provides.
 ## The plot-building functions themselves live in figure_functions.R, which
 ## this file sources, so that there is exactly one definition of each plot.
 ##
@@ -55,7 +55,7 @@
 ##
 ## CAPITALISATION RULE: SENTENCE CASE
 ##   Every axis title, plot title, subtitle, legend title and facet label
-##   begins with a capital letter; the remaining words are lower case except
+##   begins with a capital letter. The remaining words are lower case except
 ##   proper nouns, gene symbols and acronyms (PIP, MCMC, MR-CCC, MVMR,
 ##   MR-BMA, OLS, SD, FDR, LD, AR(1)). Examples:
 ##     "Rejection rate"                      not "Rejection Rate"
@@ -107,13 +107,13 @@ if (!requireNamespace("ggtext", quietly = TRUE)) {
 ## One family for every glyph. Without this, cairo falls back per character
 ## and a single figure can mix three typefaces: the body text in one, and
 ## the arrow, en-dash and Greek letters of a title in another. Helvetica is
-## present on macOS and Windows; on a Linux build without it, cairo falls
+## present on macOS and Windows. On a Linux build without it, cairo falls
 ## back to its default sans and the figure is still internally consistent.
 FONT_FAMILY <- "Helvetica"
 
 ## scale multiplies every font size. A figure wider than the 14-inch
 ## reference is reduced further in print, so it passes scale < 1 to keep the
-## printed point size in range; see the canvas-width note in the header.
+## printed point size in range. See the canvas-width note in the header.
 theme_mrccc <- function(markdown_title = FALSE, scale = 1) {
   sz <- function(x) x * scale
   title_element <- if (isTRUE(markdown_title)) {
@@ -234,10 +234,10 @@ pip_gradient_high <- "#08306b"
 
 ## The one continuous-colour guide. At the theme's legend text size the
 ## default colourbar is too narrow for its own tick labels, which then
-## overlap into a single run of digits; this sets a width that fits five
+## overlap into a single run of digits. This sets a width that fits five
 ## labels and reduces the label size for continuous guides only.
 guide_pip_colourbar <- function(...) {
-  # Wide enough for five labels at 16 pt to sit apart; on a much narrower
+  # Wide enough for five labels at 16 pt to sit apart. On a much narrower
   # bar adjacent labels overlap and become unreadable. Further guide
   # settings (for example `order`) are passed through.
   guide_colourbar(barwidth = grid::unit(260, "pt"),
@@ -315,7 +315,7 @@ breaks_at_most <- function(n_max = 4L) {
 ## 98,000 per chain at the current protocol (100,000 iterations, 2,000
 ## burn-in). plot_trace() expands the axis by 6% on each side and ggplot2
 ## passes the expanded range to the break function, so the breaks render as
-## 0k, 50k and 100k; the 100k break lies just beyond the last retained
+## 0k, 50k and 100k. The 100k break lies just beyond the last retained
 ## iteration, inside the expanded panel.
 label_thousands <- scales::label_number(scale = 1e-3, suffix = "k")
 

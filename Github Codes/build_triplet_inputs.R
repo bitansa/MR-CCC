@@ -14,8 +14,8 @@
 ## representations would, for any triplet where AUCell or
 ## UCell wins the correlation contest, silently fit a
 ## different outcome variable than the primary analysis. A
-## single definition removes that class of inconsistency;
-## the representation actually chosen in a refit is also
+## single definition removes that class of inconsistency.
+## The representation actually chosen in a refit is also
 ## checked against the primary output (see below).
 ##
 ## KEEP IN SYNC with Steps 1-6 of real_data_analysis.R. If
@@ -25,7 +25,7 @@
 ## PREREQUISITES (all inherited from real_data_analysis.R):
 ##   lr_filtered, key_cols, RNA.count.adj_Cell1,
 ##   RNA.count.adj_Cell2, V_donor, get_SNP_matrix, gsva_scores,
-##   centre_cols, orient_pc1; optionally Output_MR_CCC, against
+##   centre_cols, orient_pc1. Optionally Output_MR_CCC, against
 ##   which the re-evaluated pathway representation is checked.
 ############################################################
 
@@ -34,7 +34,7 @@
 ## breaks ties in its gene rankings at random, so the choice can in principle
 ## differ from the one recorded in the primary output, in which case the
 ## refit uses a different outcome variable. This helper reports such a
-## difference with a warning; it does not stop the refit. The primary output
+## difference with a warning. It does not stop the refit. The primary output
 ## is looked up in Output_MR_CCC when that object and its `representation`
 ## column exist, and the check is skipped otherwise.
 check_primary_representation <- function(lig_sym, rec_sym, pth, chosen) {
@@ -136,7 +136,7 @@ build_triplet_inputs <- function(lig_sym, rec_sym, pth, verbose = TRUE) {
   sd_X <- sd(as.numeric(X)); sd_Z <- sd(as.numeric(Z)); sd_Y <- sd(as.numeric(Y))
   if (!is.finite(sd_Y) || sd_Y == 0) return(NULL)
 
-  # Raw dosages from get_SNP_matrix(); the model receives centred columns,
+  # Raw dosages from get_SNP_matrix(). The model receives centred columns,
   # as do the covariates (V_donor, built once in real_data_analysis.R).
   G <- get_SNP_matrix(lig, RNA.count.adj_Cell1, min_snps = 1)
   H <- get_SNP_matrix(rec, RNA.count.adj_Cell2, min_snps = 1)

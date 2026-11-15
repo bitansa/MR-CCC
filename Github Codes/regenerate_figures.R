@@ -17,7 +17,7 @@
 ## USAGE (from the project root):
 ##   source("Github Codes/regenerate_figures.R")
 ##
-## INPUTS (all under Results/; any that are absent are skipped with a
+## INPUTS (all under Results/, any that are absent are skipped with a
 ## message rather than an error, so the script can be run at any stage of
 ## the pipeline):
 ##   <Cell1>_<Cell2>_MR_CCC.rds            -> p1, p2, p3 for every pair found
@@ -42,7 +42,7 @@
 ##
 ## SETTINGS THAT MUST MATCH THE ANALYSIS SCRIPTS
 ##   The saved real-data results carry both discovery flags (disc_pip and
-##   disc_bfdr); DISCOVERY_RULE selects which one drives the figures and
+##   disc_bfdr). DISCOVERY_RULE selects which one drives the figures and
 ##   pip_thresh is the PIP threshold drawn on them, exactly as in
 ##   real_data_analysis.R. pip_thr is the rejection threshold used to
 ##   re-derive the MR-CCC rejection column in the simulation long format,
@@ -120,7 +120,7 @@ if (length(rds_files) == 0L) {
       # Main-text copy of the focal pair's PIP ranking. The main text prints
       # it at about five inches, so it is drawn on a smaller canvas (the same
       # aspect ratio, hence the same height on the page) and the title, which
-      # the caption already carries, is dropped; both make the text print
+      # the caption already carries, is dropped. Both make the text print
       # larger.
       if (Cell1 == "NKCells" && Cell2 == "MonocytesCells") {
         p2_main <- p2 + labs(title = NULL, subtitle = NULL,

@@ -5,7 +5,7 @@
 ##
 ## Each function takes the data frame(s) a figure needs and returns a
 ## ggplot object. It performs no model fitting and reads no files. The
-## analysis scripts call these functions on freshly computed results;
+## analysis scripts call these functions on freshly computed results.
 ## regenerate_figures.R calls the same functions on results reloaded from
 ## Results/, so a figure is defined in exactly one place and can be restyled
 ## or re-exported without re-running any analysis.
@@ -87,7 +87,7 @@ pair_label_for <- function(Cell1, Cell2) {
 
 ## Adds the two columns every real-data figure uses: the ligand-receptor
 ## label and the `discover` flag. `discover` follows the discovery rule of
-## the analysis; both underlying rules remain available as disc_pip and
+## the analysis. Both underlying rules remain available as disc_pip and
 ## disc_bfdr.
 add_plot_columns <- function(out, discovery_rule = "pip") {
   out %>%
@@ -188,7 +188,7 @@ plot_bubble <- function(out, pair_label, pip_thresh) {
     ) +
     theme_mrccc(markdown_title = TRUE) +
     # The y axis carries one row per triplet, about forty per cell-type
-    # pair, so its text is set well below the theme size; at the theme's
+    # pair, so its text is set well below the theme size. At the theme's
     # 22 pt the rows collide into a solid block.
     # Legends at the bottom: the PIP colour bar is horizontal, and the two
     # pathway panels need the full width for eleven columns each.
@@ -215,7 +215,7 @@ plot_pip_ranking <- function(out, pair_label, pip_thresh) {
 
   # One row per triplet. The row key includes the pathway, so that a
   # ligand-receptor pair listed under two pathways is drawn on two rows
-  # rather than overplotted on one; the axis label shows the pair only.
+  # rather than overplotted on one. The axis label shows the pair only.
   row_sep <- " @@ "
   df_lollipop <- out %>%
     mutate(LR_ranked = fct_reorder(paste0(LR, row_sep, pathway_name),
@@ -291,7 +291,7 @@ plot_pip_ranking <- function(out, pair_label, pip_thresh) {
       panel.grid.major.y = element_blank(),
       panel.grid.major.x = element_line(color = "grey88", linewidth = 0.4),
       # The pathway legend has twelve entries, so it is placed at the right
-      # and given two columns; stacked in one column it is taller than the
+      # and given two columns. Stacked in one column it is taller than the
       # figure and its last entry is cut off at the canvas edge.
       legend.position    = "right",
       legend.text        = element_text(size = 16),
@@ -439,7 +439,7 @@ plot_effect_curves <- function(out, pair_label, pip_thresh) {
   bX  <- lab_beta_X_std()[[1]]
   bXZ <- lab_beta_XZ_std()[[1]]
   # The description takes two lines: as one line it is wider than the
-  # canvas. The formula needs plotmath and goes in the subtitle; the second
+  # canvas. The formula needs plotmath and goes in the subtitle. The second
   # line is plain text and goes in the plot caption, left-aligned. (Stacking
   # both in the subtitle with atop() centres each line, which indents the
   # shorter one.)
@@ -462,8 +462,8 @@ plot_effect_curves <- function(out, pair_label, pip_thresh) {
       fill = "grey55", alpha = 0.16
     ) +
     # Every displayed curve is a discovery (PIP > 0.5, stated in the
-    # caption), so colour identifies the triplet instead of encoding PIP;
-    # the label of each curve carries the same colour.
+    # caption), so colour identifies the triplet instead of encoding PIP.
+    # The label of each curve carries the same colour.
     geom_line(
       data      = df_lines,
       aes(x = Z, y = effect, group = triplet_id, color = LR),
@@ -486,7 +486,7 @@ plot_effect_curves <- function(out, pair_label, pip_thresh) {
     ) +
     geom_blank(data = df_extent, aes(x = x_right, y = y)) +
     scale_x_continuous(expand = expansion(mult = c(0.03, 0.02))) +
-    # One panel per pathway; only panels with discoveries are shown. Strip
+    # One panel per pathway. Only panels with discoveries are shown. Strip
     # names drop the shared "Signaling by " prefix so that they fit narrow
     # panels.
     facet_wrap(~pathway_name, scales = "free",
@@ -595,7 +595,7 @@ plot_sim_score <- function(sim_long) {
       y        = "Communication score"
     ) +
     theme_mrccc() +
-    # Method names on a four-level categorical axis; angled to avoid overlap.
+    # Method names on a four-level categorical axis. Angled to avoid overlap.
     theme(axis.text.x = element_text(angle = 40, hjust = 1, size = 20))
 }
 
@@ -677,13 +677,13 @@ plot_sim_betaXZ <- function(sim_long) {
 ##
 ## The NULL arm and the SIGNAL arm are shown together because they answer
 ## different questions from the same run: under the null the rejection rate
-## is the false positive rate, so calibration is the issue; under signal it
+## is the false positive rate, so calibration is the issue. Under signal it
 ## is power. A method can hold calibration and lose all power, or keep power
 ## by over-rejecting, and only the two panels together distinguish those.
 ############################################################
 
 ## Facet labels shared by S4-S7. The three arms mirror scenarios S1-S3 and
-## are displayed in that order; mis_arm_order() imposes it, since the
+## are displayed in that order. mis_arm_order() imposes it, since the
 ## default alphabetical ordering would place the main-effect arm first.
 ## Unused levels are dropped, so data produced with fewer arms still plot.
 ## These label the ROWS of facet_grid, whose strips are rotated, so the
@@ -699,7 +699,7 @@ mis_arm_labels <- c(
 
 ## Row strips of the ESTIMATE boxplots. Those figures show estimates, not
 ## rejection rates, so the quantity named above (type I error, power) does
-## not apply; the strip instead says which effects are present in the arm.
+## not apply. The strip instead says which effects are present in the arm.
 mis_arm_labels_box <- c(
   null   = "Null\n(no linear\neffects)",
   signal = "Signal\n(main +\ninteraction)",
@@ -739,7 +739,7 @@ mis_layers <- function(df, xvar, xlab, logx = FALSE,
   df <- mis_method_order(mis_arm_order(df))
   p <- ggplot(df, aes(x = .data[[xvar]], y = reject_rate,
                       colour = method, shape = method, group = method)) +
-    # 0.05 marks nominal size; it is meaningful in the null panel only.
+    # 0.05 marks nominal size. It is meaningful in the null panel only.
     geom_hline(yintercept = 0.05, linetype = "dashed",
                colour = "grey35", linewidth = 0.8) +
     mis_mcse_layer(df) +
@@ -788,7 +788,7 @@ plot_s5_correlated <- function(sum_mis) {
 ## S6 differs from S4, S5 and S7 only in carrying a second column variable,
 ## the fraction of invalid instruments, so it adds that facet to the shared
 ## mis_layers() rather than restating the whole plot. Adding a facet_grid
-## replaces the one mis_layers() set, which is what makes this work; writing
+## replaces the one mis_layers() set, which is what makes this work. Writing
 ## the layers out again would leave two copies to keep in step.
 plot_s6_pleiotropy <- function(sum_mis) {
   mis_layers(sum_mis %>% filter(scenario == "S6"),
@@ -812,7 +812,7 @@ plot_s6_pleiotropy <- function(sum_mis) {
 ## coefficient one sixth of beta_X = 0.3 up to a coefficient equal to beta_X.
 plot_s7_nonlinear <- function(sum_mis) {
   # In S7 the "null" arm keeps the quadratic ligand effect, so its rejection
-  # rate is not a type I error rate; the row is labelled by what the arm
+  # rate is not a type I error rate. The row is labelled by what the arm
   # contains instead of by the error it would measure.
   s7_arm_labels <- c(null   = "Quadratic\nonly",
                      signal = "Signal\n(power)",
@@ -930,8 +930,8 @@ mis_estimates_long <- function(mis_raw) {
 
 ## One boxplot figure per quantity. Truth reference lines are drawn per arm
 ## from the effect sizes shared with the S1-S3 study: the score should sit
-## near 0 in the null arm and near 1 otherwise; beta_X is 0.3 except in the
-## null arm; beta_XZ is 0.3 only in the signal arm, so in the main-effect
+## near 0 in the null arm and near 1 otherwise. beta_X is 0.3 except in the
+## null arm. beta_XZ is 0.3 only in the signal arm, so in the main-effect
 ## arm any box away from zero is a spurious interaction.
 plot_mis_estimate_box <- function(mis_raw, quantity = c("score", "beta_X",
                                                         "beta_XZ"),
@@ -940,7 +940,7 @@ plot_mis_estimate_box <- function(mis_raw, quantity = c("score", "beta_X",
   quantity <- match.arg(quantity)
   df <- mis_estimates_long(mis_raw) %>% filter(n == n_keep)
   df$value <- df[[quantity]]
-  # The interaction is modelled by OLS and MR-CCC only; the other two
+  # The interaction is modelled by OLS and MR-CCC only. The other two
   # methods have no beta_XZ and are dropped from that panel.
   if (quantity == "beta_XZ") {
     df <- df %>% filter(method %in% c("OLS", "MR-CCC"), !is.na(value))
@@ -964,7 +964,7 @@ plot_mis_estimate_box <- function(mis_raw, quantity = c("score", "beta_X",
     beta_XZ = lab_beta_XZ())
   # The notation helpers in figure_style.R are the only place these symbols
   # are spelled out, so the title reuses them rather than restating the
-  # plotmath; a second spelling is how two figures end up disagreeing.
+  # plotmath. A second spelling is how two figures end up disagreeing.
   ttl <- switch(quantity,
     score   = "Communication scores under misspecification",
     beta_X  = bquote(paste("Estimated ", .(lab_beta_X()[[1]]),
@@ -983,7 +983,7 @@ plot_mis_estimate_box <- function(mis_raw, quantity = c("score", "beta_X",
                  outlier.shape = NA, alpha = 0.9, linewidth = 0.35) +
     coord_cartesian(ylim = ylims) +
     # The point marks the MEAN, which the box (median and quartiles) does
-    # not show; a bias that the median hides, for example from a long tail
+    # not show. A bias that the median hides, for example from a long tail
     # of shrunken estimates, then remains visible.
     geom_point(aes(shape = method), stat = "summary", fun = mean,
                size = 2.6, colour = "black", show.legend = FALSE) +
@@ -997,7 +997,7 @@ plot_mis_estimate_box <- function(mis_raw, quantity = c("score", "beta_X",
            n_keep, ". Red dashed line = target value."), 88),
          x = "Method", y = y_lab) +
     # These figures carry eight scenario columns and are therefore the
-    # widest in the repository, so they are reduced further in print; the
+    # widest in the repository, so they are reduced further in print. The
     # scale keeps their text in the same range as the rest.
     theme_mrccc() +
     theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = 16)) +
@@ -1018,7 +1018,7 @@ plot_mis_estimate_box <- function(mis_raw, quantity = c("score", "beta_X",
 ##   value      sampled value (running mean for the inclusion indicator)
 ## and carries the run settings as attributes n_chains, n_iter and burn_in,
 ## which convergence_diagnostics.R attaches before saving. The subtitle is
-## built from those attributes; if they are absent, only the chain count,
+## built from those attributes. If they are absent, only the chain count,
 ## taken from the data, is stated.
 ##
 ## Facet rows are ordered by trace_parameter_levels() so that the
@@ -1036,7 +1036,7 @@ plot_trace <- function(trace_tab,
                             fixed = TRUE)
 
   # Order the facet rows. Levels present in the data are taken in the
-  # canonical order; anything unrecognised is appended rather than dropped.
+  # canonical order. Anything unrecognised is appended rather than dropped.
   lv_known   <- trace_parameter_levels()
   lv_present <- unique(as.character(trace_tab$parameter))
   trace_tab$parameter <- factor(
@@ -1061,7 +1061,7 @@ plot_trace <- function(trace_tab,
   }
 
   # Short, because a rotated axis title longer than the figure is tall is
-  # clipped at both ends; the running-mean qualification is in the subtitle.
+  # clipped at both ends. The running-mean qualification is in the subtitle.
   y_lab <- "Value"
 
   ggplot(trace_tab, aes(x = iter, y = value, colour = chain)) +

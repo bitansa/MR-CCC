@@ -45,7 +45,7 @@
 ## the number of replicates and the prior settings are identical to
 ## simulation_mrccc.R, so S4-S7 are directly comparable with S1-S3. The
 ## MR-CCC chain is longer here (one chain of 400,000 sweeps against 20,000
-## in S1-S3); see the note on chain length under USER SETTINGS.
+## in S1-S3). See the note on chain length under USER SETTINGS.
 ##
 ## PREREQUISITES (in this order):
 ##   Rcpp::sourceCpp("Github Codes/mr_ccc_gibbs.cpp")
@@ -94,7 +94,7 @@ SEED_MIS <- 20260921          # reproducibility
 ## number of misspecification settings is expensive. Extend if required.
 mis_sample_sizes <- c(500, 1000)
 
-## Replicates per cell; matches R_reps in simulation_mrccc.R, where the
+## Replicates per cell. Matches R_reps in simulation_mrccc.R, where the
 ## Monte Carlo standard error of a rejection rate is worked through. It
 ## matters more here than there: S4-S7 are read as calibration statements
 ## ("is the false-positive rate still 0.05?"), and at 20 replicates the
@@ -131,7 +131,7 @@ alpha_sig_mis <- 0.05
 ## quadrature reproduces the single-chain standard error exactly once the
 ## total is matched, so the two configurations are equally precise. Several
 ## chains are used for the real data because the Gelman-Rubin statistic is
-## reported there for every triplet; a single chain is used here because
+## reported there for every triplet. A single chain is used here because
 ## between-chain diagnostics on 10,800 independent fits would be reported
 ## nowhere, and quadrupling the number of fits to compute a statistic that
 ## never appears would buy nothing.
@@ -141,7 +141,7 @@ burn_in_mis <- 2000
 pG_mis <- 5; pH_mis <- 5; pV_mis <- 3
 conf_mis <- 0.7               # confounder loading (matches S1-S3)
 
-## Signal used for the "signal" arms; matches scenario S2 of the main study
+## Signal used for the "signal" arms. Matches scenario S2 of the main study
 ## so that the weak-instrument results can be read directly against it.
 beta_X_sig  <- 0.3
 beta_XZ_sig <- 0.3
@@ -165,7 +165,7 @@ pleio_delta_grid <- c(0.1, 0.3)
 ## S7: nonlinear forms for the ligand effect.
 ## Quadratic only. A threshold form is implemented in generate_data_mis()
 ## and can be added here, but a single clear departure from linearity
-## isolates the effect of misspecification; piling on harder forms would
+## isolates the effect of misspecification. Piling on harder forms would
 ## obscure rather than sharpen the point.
 nl_form_grid <- c("quadratic")
 
@@ -183,8 +183,8 @@ nl_form_grid <- c("quadratic")
 ## while the departure is mild, identifies where it begins to manufacture an
 ## interaction, and reports how large that spurious interaction is at each
 ## level, so a reader can judge which regime their own application
-## resembles. The model itself is not changed in response to this scenario;
-## the scenario characterises the range over which the linear working model
+## resembles. The model itself is not changed in response to this scenario.
+## The scenario characterises the range over which the linear working model
 ## remains adequate.
 nl_coef_grid <- c(0.05, 0.1, 0.2, 0.3)
 
@@ -207,8 +207,8 @@ nl_coef_grid <- c(0.05, 0.1, 0.2, 0.3)
 ## alongside the targets.
 ##
 ## Inverting gives the pi that attains a target F at a given n. Note that F
-## is held FIXED as n grows, which is the weak-instrument asymptotic regime;
-## holding pi fixed instead would make every design strong as n increases and
+## is held FIXED as n grows, which is the weak-instrument asymptotic regime.
+## Holding pi fixed instead would make every design strong as n increases and
 ## would miss the behaviour of interest.
 ############################################################
 pi_for_target_F <- function(target_F, n,
@@ -348,7 +348,7 @@ build_grid <- function() {
     mutate(scenario = "S7", target_F = 70, iv_corr = 0,
            pleio_frac = 0, pleio_delta = 0)
 
-  # S4-S6 are linear, so their nonlinearity strength is zero; the column is
+  # S4-S6 are linear, so their nonlinearity strength is zero. The column is
   # added explicitly so that bind_rows() aligns rather than filling with NA.
   s4$nl_coef <- 0
   s5$nl_coef <- 0
@@ -426,13 +426,13 @@ run_one_mis <- function(cell, rep_id) {
 ############################################################
 ## DRIVER
 ##
-## mclapply uses forking and is not available on Windows; set n_cores = 1
+## mclapply uses forking and is not available on Windows. Set n_cores = 1
 ## there, or substitute parallel::parLapply with a PSOCK cluster.
 ##
 ## The core count comes from .default_sim_cores(), defined in
 ## simulation_mrccc.R and shared by both studies so that parallelisation is
 ## configured in one place. It claims every core but one by default, which
-## is right when a simulation is the only thing running; assigning
+## is right when a simulation is the only thing running. Assigning
 ## .mrccc_sim_cores before sourcing caps it when the machine is also busy
 ## with the twenty-pair real-data sweep or the sensitivity analyses. The
 ## value actually in use is printed either way.
@@ -505,7 +505,7 @@ summarise_mis <- function(res) {
       # 0.05 on its own scale: a departure smaller than this is noise.
       reject_mcse  = sd(reject, na.rm = TRUE) /
                        sqrt(sum(is.finite(reject))),
-      # True values per arm: beta_X is nonzero in the signal AND main arms;
+      # True values per arm: beta_X is nonzero in the signal AND main arms.
       # beta_XZ only in the signal arm. In the main arm the beta_XZ bias is
       # therefore measured against zero, which is exactly the spurious-
       # interaction question that arm exists to answer.
@@ -611,22 +611,22 @@ cat("\nWritten to Results/simulation_S4_S7_summary.csv\n")
 ## designed to interrogate against the departure being varied. The NULL arm
 ## and the SIGNAL arm are shown together because they answer different
 ## questions from the same run: under the null the rejection rate is the
-## false positive rate, so calibration is the issue; under signal it is
+## false positive rate, so calibration is the issue. Under signal it is
 ## power.
 ##
 ## Each figure is built by a function in figure_functions.R (sourced
-## through figure_style.R), which is the single definition of that figure;
+## through figure_style.R), which is the single definition of that figure.
 ## regenerate_figures.R calls the same functions on the saved summary CSV.
 ## Theme, the Okabe-Ito method palette, point shapes and export settings
 ## come from figure_style.R, so these figures match S1-S3 and the real-data
 ## figures exactly.
 ############################################################
 ## figure_style.R is sourced by simulation_mrccc.R, which is a prerequisite
-## of this script; sourcing it again here is harmless and makes this
+## of this script. Sourcing it again here is harmless and makes this
 ## section runnable on its own once sum_mis exists.
 source("Github Codes/figure_style.R")
 
-## The summary is written above; recomputed here only if that object is not
+## The summary is written above. Recomputed here only if that object is not
 ## in scope, so this section can also be run on its own.
 if (!exists("sum_mis")) sum_mis <- summarise_mis(res_mis)
 

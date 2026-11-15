@@ -18,7 +18,7 @@
 ##     donor.rda             -- donor metadata, SNP genotype matrix,
 ##                              and GRanges objects for SNP/gene coords
 ##   Save both files to one local folder and set the environment
-##   variable MRCCC_DATA_DIR to that folder (default ~/data/mrccc);
+##   variable MRCCC_DATA_DIR to that folder (default ~/data/mrccc).
 ##   DATA_DIR below is read from it.
 ##
 ## OUTPUT:
@@ -39,7 +39,7 @@
 ##   built by the functions in figure_functions.R and styled by
 ##   figure_style.R, which every figure in this repository shares.
 ##   PDF files saved to Plots/ subdirectory.
-##   RDS file saved to Results/ subdirectory for re-use; the figures can
+##   RDS file saved to Results/ subdirectory for re-use. The figures can
 ##   be rebuilt from it with regenerate_figures.R without re-running
 ##   the sampler.
 ############################################################
@@ -93,7 +93,7 @@ if (!exists("mr_ccc_gibbs")) {
 }
 ## loglik_draws is an element of the RETURN VALUE, not an argument, so it
 ## cannot be checked with formals(). A throwaway fit on random data is used
-## instead; at 20 iterations on 40 rows the cost is not measurable.
+## instead. At 20 iterations on 40 rows the cost is not measurable.
 local({
   probe <- mr_ccc_gibbs(
     matrix(rnorm(40), 40), matrix(rnorm(40), 40), matrix(rnorm(40), 40),
@@ -116,7 +116,7 @@ local({
 ############################################################
 ## Interactively, edit the two defaults below. To sweep several ordered pairs
 ## non-interactively, set .mrccc_cell1 / .mrccc_cell2 before sourcing this
-## file (run_pair.R does exactly that); the defaults then do not apply.
+## file (run_pair.R does exactly that). The defaults then do not apply.
 ##
 ## The override is checked rather than assigned unconditionally because
 ## source()-ing this script would otherwise reset Cell1 and Cell2 on every
@@ -135,7 +135,7 @@ cat("\n=== Ordered pair:", Cell1, "->", Cell2, "===\n")
 ##
 ## The generator is named explicitly so that a session left in another
 ## generator (simulation_misspecification.R selects L'Ecuyer-CMRG) cannot
-## change the stream; Mersenne-Twister is R's default, so in a fresh session
+## change the stream. Mersenne-Twister is R's default, so in a fresh session
 ## this is identical to set.seed(SEED). Note that donor.rda, loaded below,
 ## contains a saved .Random.seed (Mersenne-Twister), which load() restores in
 ## the global environment. The draws made after loading therefore follow that
@@ -162,7 +162,7 @@ if (length(ls(envir = .GlobalEnv)) > 50L) {
 ## ---- MCMC settings -------------------------------------------------------
 ## thin = 1 by default. The PIP is the proportion of retained iterations with
 ## gamma = 1, so its Monte Carlo precision depends on the number of retained
-## draws; thinning discards information that directly reduces that precision.
+## draws. Thinning discards information that directly reduces that precision.
 ## Thinning is useful for memory, which is not a constraint here.
 ##
 ## The script reports a Monte Carlo standard error (MCSE) for every PIP, so
@@ -199,7 +199,7 @@ if (length(ls(envir = .GlobalEnv)) > 50L) {
 ##   WHY FOUR CHAINS OF 100000 RATHER THAN ONE OF 400000. The two are
 ##   equivalent in precision. The Monte Carlo standard error of a chain
 ##   average scales as the reciprocal square root of its length, so a chain of
-##   100000 carries twice the MCSE of a chain of 400000; combining C chains in
+##   100000 carries twice the MCSE of a chain of 400000. Combining C chains in
 ##   quadrature divides by C, giving sqrt(C * (2m)^2) / C = 2m / sqrt(C),
 ##   which at C = 4 returns exactly m, the single-chain value. Four chains of
 ##   100000 therefore reproduce the precision of one chain of 400000 at the
@@ -217,7 +217,7 @@ if (length(ls(envir = .GlobalEnv)) > 50L) {
 ## operating characteristics are averaged over 100 replicates, and the
 ## simulated PIPs mostly sit far from the threshold (well below it under the
 ## null, near 1 under signal), so chain noise rarely decides a rejection.
-## This script reports the MCSE of every PIP; the S1-S3 simulation output
+## This script reports the MCSE of every PIP. The S1-S3 simulation output
 ## does not store it, while the S4-S7 output does.
 ##
 ## The misspecification study (S4-S7) is the exception among the
@@ -263,7 +263,7 @@ stopifnot(
 ## (Pi_X, Pi_Z), which are summarised per triplet by first_stage_posterior.R
 ## and written to Results/first_stage_posterior_<Cell1>_<Cell2>.csv. Storing
 ## the draws uses no random numbers, so every other result of such a run is
-## identical to that of the primary run; the run's outputs are prefixed
+## identical to that of the primary run. The run's outputs are prefixed
 ## "firststage_" so that they never overwrite the primary files, and are
 ## compared with them at the end.
 SAVE_FIRST_STAGE <- isTRUE(get0(".mrccc_first_stage", ifnotfound = FALSE))
@@ -282,7 +282,7 @@ if (SAVE_FIRST_STAGE) source("Github Codes/first_stage_posterior.R")
 ## chain of C * N_ITER. Four chains of 100,000 and one chain of 400,000 are
 ## therefore the same precision at the same cost. Several chains additionally
 ## admit R-hat, which compares between-chain with within-chain variance and is
-## the standard convergence diagnostic; a single chain admits only
+## the standard convergence diagnostic. A single chain admits only
 ## within-chain substitutes.
 ##
 ## INIT_SCALE MUST BE POSITIVE whenever N_CHAINS > 1. R-hat is a ratio of
@@ -294,7 +294,7 @@ if (SAVE_FIRST_STAGE) source("Github Codes/first_stage_posterior.R")
 ## beta_X and beta_XZ, and init_gamma alternates between chains so that the
 ## inclusion indicator is also dispersed.
 N_CHAINS   <- 4
-INIT_SCALE <- 1.0   # standard deviation of the dispersed start; must be > 0 when N_CHAINS > 1
+INIT_SCALE <- 1.0   # standard deviation of the dispersed start. Must be > 0 when N_CHAINS > 1
 
 stopifnot(
   "N_CHAINS must be a positive whole number" =
@@ -321,11 +321,11 @@ stopifnot(
 BAND_DRAWS <- 2000L
 
 ## ---- Discovery rule ------------------------------------------------------
-## "pip"  : PIP > pip_thresh (median probability model; Barbieri & Berger 2004)
+## "pip"  : PIP > pip_thresh (median probability model, Barbieri & Berger 2004)
 ## "bfdr" : largest set whose Bayesian false discovery rate does not exceed
 ##          bfdr_alpha, where  bFDR(S) = |S|^-1 * sum_{j in S} (1 - PIP_j)
 ##
-## Both are always computed and reported; DISCOVERY_RULE only determines which
+## Both are always computed and reported. DISCOVERY_RULE only determines which
 ## one defines `discover` for the figures.
 ##
 ## NOTE ON THE DEFAULT. "pip" is kept as the primary rule because the median
@@ -420,7 +420,7 @@ RNA.count_CD8Cells <- sapply(CD8_Cells, colSums)
 RNA.count_NKCells  <- sapply(NK_Cells,  colSums)
 
 # Monocytes list elements can be either a matrix or a named
-# numeric vector; this helper handles both cases.
+# numeric vector. This helper handles both cases.
 get_gene_counts <- function(x) {
   if (!is.null(dim(x)) && length(dim(x)) == 2) return(colSums(x))
   if (is.atomic(x) && is.null(dim(x)))           return(x)
@@ -547,7 +547,7 @@ gene.promoter.ref <- promoters(gene.ref,
                                upstream   = 200000,
                                downstream = 200000)
 
-# Convert string genotypes to numeric dosage; "./." stays NA
+# Convert string genotypes to numeric dosage. "./." stays NA
 genotype.mat <- matrix(NA_real_, nrow = nrow(genotype), ncol = ncol(genotype))
 genotype.mat[genotype == "0/0"] <- 0
 genotype.mat[genotype == "0/1"] <- 1
@@ -625,10 +625,10 @@ if (exists(".mrccc_max_triplets")) {
 #
 # Because each decision depends only on SNPs earlier in the list, the first
 # k kept for any k <= keep_max are exactly what a run with keep_max = k
-# would keep; the instrument-count sensitivity relies on this.
+# would keep. The instrument-count sensitivity relies on this.
 #
 # A SNP with no variation in the retained donors has an undefined
-# correlation; it is skipped rather than kept, since it cannot serve as an
+# correlation. It is skipped rather than kept, since it cannot serve as an
 # instrument. r2_max = 1 keeps every SNP and reproduces the unclumped top-k.
 #
 # KEEP IN SYNC with clump_by_ld() in instrument_overlap_sensitivity.R.
@@ -664,7 +664,7 @@ get_SNP_matrix <- function(gene_id, RNA_mat_adj, min_snps = 5) {
   snp.pval <- rep(NA_real_, length(snp.ind))
   for (j in seq_along(snp.ind)) {
     g_j <- genotype.mat[snp.ind[j], ]
-    # A SNP with no variation among these donors has no eQTL p-value; lm()
+    # A SNP with no variation among these donors has no eQTL p-value. lm()
     # would drop its term and row 2 would belong to a covariate.
     if (var(g_j) == 0) next
     lm.j <- lm(RNA_mat_adj[gene_id, ] ~ g_j + V_donor)
@@ -682,7 +682,7 @@ get_SNP_matrix <- function(gene_id, RNA_mat_adj, min_snps = 5) {
   out <- t(genotype.mat[best_snps, , drop = FALSE])  # n x k (donors x SNPs)
   # SNP identifiers as column names, taken from the row names of the
   # character genotype matrix, whose rows match genotype.mat. They serve as
-  # labels only (for example in leave_one_instrument_out.R); no computation
+  # labels only (for example in leave_one_instrument_out.R). No computation
   # uses them.
   if (exists("genotype") && length(rownames(genotype)) == nrow(genotype.mat)) {
     colnames(out) <- rownames(genotype)[best_snps]
@@ -716,8 +716,8 @@ orient_pc1 <- function(pc, ref) {
 # Both forms are supported here so that the code runs unchanged with GSVA
 # releases on either side of that change. Note that `abs.ranking` applied
 # only to the "gsva" method in the legacy interface and was silently ignored
-# for ssGSEA;
-# the new interface names it `absRanking` and it is left at its default.
+# for ssGSEA.
+# The new interface names it `absRanking` and it is left at its default.
 #
 # KEEP IN SYNC with the copy in instrument_overlap_sensitivity.R, which
 # defines it only when this one is not already present. The other refit
@@ -750,7 +750,7 @@ gsva_scores <- function(expr_full, geneSets,
 #   * the familiar "F > 10" rule of thumb derives from two-stage least squares
 #     with a single exposure and has no established analogue for the
 #     interaction term used here, whose design column X* o Z* is a PRODUCT of
-#     two first-stage projections and therefore inherits weakness from both;
+#     two first-stage projections and therefore inherits weakness from both.
 #   * instruments are selected by p-value in these same data, so F is
 #     optimistic (winner's curse).
 # F is therefore reported as a diagnostic, not as a certificate.
@@ -794,7 +794,7 @@ mcse_batch <- function(x, n_batch = 30L) {
 
 # ---- Gelman-Rubin R-hat ----------------------------------------------------
 # R-hat for a list of equal-length chains (Gelman & Rubin, 1992). Values near
-# 1 indicate that the between-chain and within-chain variances agree; a common
+# 1 indicate that the between-chain and within-chain variances agree. A common
 # working rule is R-hat < 1.01.
 #
 # This is character-for-character the function used in
@@ -838,7 +838,7 @@ mcse_pooled <- function(mc_list) {
   es  <- vapply(mc_list[ok], function(z) unname(z["ess"]),  numeric(1))
   # Divide by the TOTAL number of chains, not the number with a finite MCSE.
   # mcse_batch() returns NA for a chain that is constant over all retained
-  # draws (PIP at exactly 0 or 1), whose true MCSE is zero; treating it as
+  # draws (PIP at exactly 0 or 1), whose true MCSE is zero. Treating it as
   # absent instead of as zero would overstate the pooled MCSE by up to C-fold.
   c(mcse = sqrt(sum(se^2)) / length(mc_list), ess = sum(es, na.rm = TRUE))
 }
@@ -888,7 +888,7 @@ First_stage_list <- list()
 out_idx     <- 0
 
 # Triplets that cannot be built are skipped. The reasons are counted so that
-# a one-line summary can be reported for the pair after the loop; counting
+# a one-line summary can be reported for the pair after the loop. Counting
 # does not change which triplets are kept.
 #   empty_keyword       the CellPhoneDB classification yields no keyword
 #   no_reactome_match   no Reactome gene-set name matches the keyword
@@ -1041,7 +1041,7 @@ for (run in seq_len(nrow(lr_filtered))) {
 
   # ---- Step 5: Instrument matrices G and H ----
   # get_SNP_matrix() returns raw dosages, which are what the clumping and the
-  # F statistic use; the sampler receives the centred columns.
+  # F statistic use. The sampler receives the centred columns.
   G_raw <- get_SNP_matrix(ligand_gene_id,   RNA.count.adj_Cell1, min_snps = 1)
   if (is.null(G_raw)) {
     .skip_counts["no_instruments"] <- .skip_counts["no_instruments"] + 1L
@@ -1181,7 +1181,7 @@ for (run in seq_len(nrow(lr_filtered))) {
   # ---- Step 8c: Monte Carlo error of the PIP -------------------------------
   # The PIP is a chain average of a binary indicator. Because the gamma chain
   # is autocorrelated, the naive binomial standard error understates the true
-  # Monte Carlo uncertainty; a batch-means estimator is used instead.
+  # Monte Carlo uncertainty. A batch-means estimator is used instead.
   #
   # The estimator is applied WITHIN each chain and the results combined in
   # quadrature, rather than applied to the concatenated draws, so that no
@@ -1206,7 +1206,7 @@ for (run in seq_len(nrow(lr_filtered))) {
   # correlated in the posterior, so a band built by combining their separate
   # marginal intervals would be far too wide.
   #
-  # outer() gives a (draws x z) matrix; adding bX recycles down the columns,
+  # outer() gives a (draws x z) matrix. Adding bX recycles down the columns,
   # which is correct here because the matrix has one row per draw.
   .bi <- if (length(bX_dr) > BAND_DRAWS) {
     round(seq(1, length(bX_dr), length.out = BAND_DRAWS))
@@ -1264,7 +1264,7 @@ for (run in seq_len(nrow(lr_filtered))) {
     PIP_mcse          = unname(mc["mcse"]),
     PIP_ess           = unname(mc["ess"]),
     n_chains          = N_CHAINS,
-    n_iter            = N_ITER,            # per chain; records the protocol
+    n_iter            = N_ITER,            # per chain. Records the protocol
     ld_r2_max         = LD_R2_MAX,         # instrument clumping threshold
     n_keep            = length(g_dr),      # pooled across chains
     rhat_Beta_X       = rhat_X,            # NA unless N_CHAINS >= 2
@@ -1299,7 +1299,7 @@ message("Triplets skipped for ", Cell1, " -> ", Cell2, ": ",
 ##
 ##   PIP > pip_thresh   the median probability model
 ##                      (Barbieri & Berger, 2004), the standard default
-##                      in Bayesian variable selection;
+##                      in Bayesian variable selection.
 ##
 ##   Bayesian FDR       the largest set whose posterior expected false
 ##                      discovery proportion does not exceed bfdr_alpha.
@@ -1369,7 +1369,7 @@ if (N_CHAINS > 1 && any(is.finite(Output_MR_CCC$rhat_max))) {
   # parameter whose convergence bears on a reported decision: discovery is
   # declared by comparing its chain average with a threshold. A flag on
   # beta_X or beta_XZ affects an interval that is reported with its full
-  # width; a flag on gamma would affect a claim. These are reported
+  # width. A flag on gamma would affect a claim. These are reported
   # separately so the two are not conflated.
   # max() of an empty vector returns -Inf with a warning, so the
   # discovery line is guarded: a pair with no discoveries is an ordinary
@@ -1419,7 +1419,7 @@ cat("  triplets within 2 MCSE of the PIP threshold:",
 
 # Which of the six representations the adaptive rule actually selected.
 # The selection frequencies characterise how the adaptive rule behaves and
-# are reported alongside the results; a small median margin over the
+# are reported alongside the results. A small median margin over the
 # runner-up is evidence that the choice is not doing much work.
 cat("\n--- Pathway representation (adaptive rule) ---\n")
 print(table(Output_MR_CCC$representation))
@@ -1476,7 +1476,7 @@ if (SAVE_FIRST_STAGE) {
 ##          (only PIP > pip_thresh pairs displayed)
 ##
 ## Each figure is built by a function in figure_functions.R (sourced
-## through figure_style.R), which is the single definition of that figure;
+## through figure_style.R), which is the single definition of that figure.
 ## regenerate_figures.R calls the same functions on the saved RDS. Theme,
 ## palettes and notation come from figure_style.R.
 ############################################################
@@ -1484,7 +1484,7 @@ if (SAVE_FIRST_STAGE) {
 # ---- Prepare shared plotting variables ----
 # pair_label is the HTML-formatted "sender -> receiver" title fragment.
 # add_plot_columns() adds the ligand-receptor label and the `discover` flag,
-# which follows DISCOVERY_RULE; both underlying rules remain available as
+# which follows DISCOVERY_RULE. Both underlying rules remain available as
 # disc_pip and disc_bfdr.
 pair_label    <- pair_label_for(Cell1, Cell2)
 Output_MR_CCC <- add_plot_columns(Output_MR_CCC, DISCOVERY_RULE)

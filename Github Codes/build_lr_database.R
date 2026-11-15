@@ -42,7 +42,7 @@ library(msigdbr)
 #   protein_input.csv
 #   complex_input.csv
 #   gene_input.csv
-#   transcription_factor_input.csv   (optional; read if present, not used)
+#   transcription_factor_input.csv   (optional, read if present, not used)
 #
 # Save all five to a single local folder and point CELLPHONEDB_DIR at it, as
 # described below.
@@ -76,7 +76,7 @@ cat("DATA_DIR:", DATA_DIR, "\n")
 ##   protein_input.csv     -- protein metadata
 ##   complex_input.csv     -- multi-subunit complex definitions
 ##   gene_input.csv        -- gene symbol <-> Ensembl mapping
-##   transcription_factor_input.csv -- TF annotations (optional;
+##   transcription_factor_input.csv -- TF annotations (optional,
 ##                                     read if present, not used)
 ############################################################
 
@@ -91,7 +91,7 @@ genes <- read.csv(file.path(DATA_DIR, "gene_input.csv"))
 tfs   <- if (file.exists(.tf_path)) read.csv(.tf_path) else NULL
 
 # ---- Step 1: Filter to Ligand-Receptor interactions ----
-# CellPhoneDB records many interaction types; we keep only
+# CellPhoneDB records many interaction types. We keep only
 # directional Ligand-Receptor pairs for the CCC analysis.
 cols_keep <- c(
   "id_cp_interaction", "partner_a", "partner_b",
@@ -169,9 +169,9 @@ parse_gene_vec <- function(x) {
 }
 
 # Returns c(ligand_side, receptor_side, status), where status is one of
-# "validated", "ambiguous" (more than one position validates; the first is
-# used), "fallback" (none validates; the first hyphen is used) or "none"
-# (no hyphen present; the receptor side is NA and is filled downstream).
+# "validated", "ambiguous" (more than one position validates, the first is
+# used), "fallback" (none validates, the first hyphen is used) or "none"
+# (no hyphen present, the receptor side is NA and is filled downstream).
 split_gene_pair <- function(s, known) {
   hy <- str_locate_all(s, "-")[[1]]
   if (nrow(hy) == 0L) return(c(s, NA_character_, "none"))
@@ -220,7 +220,7 @@ ligrec_out <- ligrec_clean %>%
 
 # Report how the ligand/receptor split was resolved. Records whose split lies
 # at a hyphen other than the first are the ones that contain a hyphenated
-# gene symbol; they are listed so that these splits are visible in the log.
+# gene symbol. They are listed so that these splits are visible in the log.
 .split_tab <- table(factor(ligrec_out$split_status,
                            levels = c("validated", "ambiguous",
                                       "fallback", "none")))
@@ -318,7 +318,7 @@ cat("CellPhoneDB: retained", nrow(lr_matrix),
 ############################################################
 
 # ---- Load Reactome gene sets for Homo sapiens ----
-# `collection` replaced `category` in msigdbr 10.0.0; the two are synonyms
+# `collection` replaced `category` in msigdbr 10.0.0. The two are synonyms
 # for the same argument and select the same gene sets.
 msig_reactome <- msigdbr(
   species       = "Homo sapiens",
