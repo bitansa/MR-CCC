@@ -637,7 +637,10 @@ clump_by_ld <- function(cand, geno, keep_max, r2_max) {
   kept <- integer(0)
   for (s in cand) {
     if (length(kept) >= keep_max) break
-    if (length(kept) == 0L) { kept <- s; next }
+    if (length(kept) == 0L) {
+      kept <- s
+      next
+    }
     r <- suppressWarnings(stats::cor(geno[s, ], t(geno[kept, , drop = FALSE])))
     if (any(is.na(r))) next
     if (max(r^2) <= r2_max) kept <- c(kept, s)
@@ -650,7 +653,7 @@ clump_by_ld <- function(cand, geno, keep_max, r2_max) {
 # p-value, and returns up to 10 as columns of the instrument matrix, taken
 # in p-value order with LD clumping at LD_R2_MAX (see USER SETTINGS).
 # Returns NULL if fewer than min_snps qualifying SNPs exist.
-get_SNP_matrix <- function(gene_id, RNA_mat_adj, min_snps = 5) {
+get_SNP_matrix <- function(gene_id, RNA_mat_adj, min_snps = 1) {
   gene.ind <- which(gene.ref$gene_id == gene_id)
   if (length(gene.ind) == 0) return(NULL)
   
@@ -802,7 +805,8 @@ mcse_batch <- function(x, n_batch = 30L) {
 # diagnostics script exists to certify the numbers this script reports, which
 # it can only do if both compute R-hat the same way.
 gelman_rubin <- function(chains) {
-  m <- length(chains); n <- length(chains[[1]])
+  m <- length(chains)
+  n <- length(chains[[1]])
   if (m < 2 || n < 2) return(NA_real_)
   means <- vapply(chains, mean, numeric(1))
   vars  <- vapply(chains, stats::var, numeric(1))
@@ -1069,9 +1073,10 @@ for (run in seq_len(nrow(lr_filtered))) {
   # the inclusion indicator begins in the slab for odd chains and in the spike
   # for even ones, and the two causal coefficients are drawn from
   # N(0, INIT_SCALE^2). Their random streams differ because the chains run
-  # consecutively through R's RNG. No per-chain seed is set, so the single
-  # set.seed(SEED) at the top of the script keeps the whole analysis
-  # reproducible.
+  # consecutively through R's RNG. No per-chain seed is set. The random
+  # stream is fixed by the .Random.seed saved in donor.rda, which load()
+  # restores (see the note beside SEED at the top of the script), so the
+  # whole analysis is reproducible.
   #
   # The loop remains correct at N_CHAINS = 1, where it reduces to one chain
   # from init_gamma = 1, but R-hat is then undefined and reported as NA. The
@@ -1363,7 +1368,7 @@ if (N_CHAINS > 1 && any(is.finite(Output_MR_CCC$rhat_max))) {
   n_bad_rhat <- sum(Output_MR_CCC$rhat_max > 1.01, na.rm = TRUE)
   cat("  triplets with R-hat > 1.01:", n_bad_rhat, "of", n_trip,
       if (n_bad_rhat == 0) "(all converged)\n" else
-        "(RERUN THESE WITH A LONGER CHAIN)\n")
+        "(check their MCSE before reporting them)\n")
 
   # The INCLUSION INDICATOR deserves its own line, because it is the only
   # parameter whose convergence bears on a reported decision: discovery is
@@ -1413,9 +1418,13 @@ cat("  PIP effective size : median",
 # reliably classified: its discovery status is within Monte Carlo noise.
 borderline <- with(Output_MR_CCC,
                    abs(gamma_mean - pip_thresh) < 2 * PIP_mcse)
-cat("  triplets within 2 MCSE of the PIP threshold:",
-    sum(borderline, na.rm = TRUE),
-    "(their discovery status is not resolved by this chain length)\n")
+n_borderline <- sum(borderline, na.rm = TRUE)
+cat("  triplets within 2 MCSE of the PIP threshold:", n_borderline,
+    if (n_borderline > 0) {
+      "(their discovery status is not resolved by this chain length)\n"
+    } else {
+      "\n"
+    })
 
 # Which of the six representations the adaptive rule actually selected.
 # The selection frequencies characterise how the adaptive rule behaves and

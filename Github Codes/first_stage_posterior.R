@@ -14,7 +14,8 @@
 ## the two functions below.
 ##
 ## USAGE (from the project root, in a fresh R session):
-##   .mrccc_cell1 <- "NKCells"; .mrccc_cell2 <- "MonocytesCells"
+##   .mrccc_cell1 <- "NKCells"
+##   .mrccc_cell2 <- "MonocytesCells"
 ##   .mrccc_first_stage <- TRUE
 ##   Rcpp::sourceCpp("Github Codes/mr_ccc_gibbs.cpp")
 ##   source("Github Codes/build_lr_database.R")
@@ -59,7 +60,7 @@ first_stage_summary <- function(fits, field, D, y_c, side) {
   dr <- do.call(rbind, lapply(fits, function(f) f[[field]]))
   if (is.null(dr) || nrow(dr) < 2L) {
     stop("No first-stage draws found in '", field,
-         "'; was the sampler called with save_first_stage = TRUE?")
+         "'. Was the sampler called with save_first_stage = TRUE?")
   }
   k <- ncol(dr)
 
@@ -135,8 +136,8 @@ write_first_stage_posterior <- function(rows, output, Cell1, Cell2, prefix) {
     if (nrow(j) == nrow(p0) && d_pip == 0 && d_beta == 0) {
       cat("REPRODUCED EXACTLY: the rerun matches the primary analysis.\n")
     } else {
-      warning("The rerun does not reproduce the primary analysis exactly; ",
-              "check package versions against the primary sessionInfo.",
+      warning("The rerun does not reproduce the primary analysis exactly. ",
+              "Check package versions against the primary sessionInfo.",
               call. = FALSE)
     }
   }

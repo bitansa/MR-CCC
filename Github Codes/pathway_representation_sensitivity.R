@@ -186,7 +186,7 @@ report_fit_failures <- function(part) {
   if (.fit_failures$n > 0L) {
     cat("\n  NOTE:", .fit_failures$n, "fit(s) in", part,
         "could not be completed and were skipped.\n")
-    cat("        Reason(s):", paste(.fit_failures$msg, collapse = "; "), "\n")
+    cat("        Reason(s):", paste(.fit_failures$msg, collapse = " | "), "\n")
     cat("        This occurs when a FIXED representation yields an outcome",
         "that is\n        near-constant or numerically collinear with the",
         "projected exposures.\n        It is a property of that",
@@ -200,7 +200,9 @@ report_fit_failures <- function(part) {
 }
 
 fit_one <- function(X, Z, Y, G, H, V) {
-  sd_X <- sd(as.numeric(X)); sd_Z <- sd(as.numeric(Z)); sd_Y <- sd(as.numeric(Y))
+  sd_X <- sd(as.numeric(X))
+  sd_Z <- sd(as.numeric(Z))
+  sd_Y <- sd(as.numeric(Y))
   if (!is.finite(sd_Y) || sd_Y == 0) return(NULL)
 
   # A FIXED representation can produce an outcome the adaptive rule would
@@ -225,12 +227,13 @@ fit_one <- function(X, Z, Y, G, H, V) {
   # N_ITER, BURN_IN, THIN, INIT_SCALE) so it is IDENTICAL to the primary.
   #
   # This matters for the comparison, not just for tidiness. The "adaptive"
-  # arm of this sensitivity analysis is meant to REPRODUCE the primary
-  # result. Any difference in chain length or start would let a gap between
+  # arm of this sensitivity analysis replicates the primary analysis under
+  # identical settings, as a fresh MCMC run. Any difference in chain length or start would let a gap between
   # a fixed representation and the adaptive rule be Monte Carlo noise rather
   # than the effect of the representation, and the comparison would not
   # isolate the effect of the representation choice.
-  n <- nrow(X_c); g_scale <- min(n, 100.0)
+  n <- nrow(X_c)
+  g_scale <- min(n, 100.0)
   fits <- tryCatch(
     lapply(seq_len(N_CHAINS), function(cc) {
       mr_ccc_gibbs(
@@ -317,7 +320,9 @@ prepare_triplet <- function(run) {
 ############################################################
 cat("\n=== Part 1: fixed-representation re-analysis ===\n")
 
-trip_cache <- list(); rows <- list(); k <- 0
+trip_cache <- list()
+rows <- list()
+k <- 0
 for (run in seq_len(nrow(lr_filtered))) {
   tr <- prepare_triplet(run)
   if (is.null(tr)) next
@@ -370,7 +375,7 @@ if (nrow(.dup_keys) > 0L) {
        nrow(.dup_keys), " triplet(s), e.g. ",
        paste(.dup_keys$ligand[1], .dup_keys$receptor[1], .dup_keys$pathway[1],
              sep = " / "),
-       "; the concordance join would duplicate rows.", call. = FALSE)
+       ". The concordance join would duplicate rows.", call. = FALSE)
 }
 
 concord <- fixed_res %>%
@@ -421,7 +426,8 @@ cat("\n=== Part 2: permutation null calibration ===\n")
 perm_pool <- if (is.null(PERM_MAX_TRIPLETS)) seq_along(trip_cache) else
   head(seq_along(trip_cache), PERM_MAX_TRIPLETS)
 
-perm_rows <- list(); m <- 0
+perm_rows <- list()
+m <- 0
 for (b in seq_len(N_PERM)) {
   idx <- sample.int(nrow(donor))          # one permutation, shared across reps
   for (ti in perm_pool) {

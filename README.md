@@ -2,12 +2,12 @@
 
 [![DOI](https://zenodo.org/badge/1216664035.svg)](https://doi.org/10.5281/zenodo.23167575)
 
-This repository contains the scripts that reproduce every analysis, table
-and figure in
+This repository contains the scripts that reproduce the analyses, tables
+and figures in
 
 > Sarkar B, Ni Y (2026). *MR-CCC: Bayesian Mendelian Randomization for
-> Causal Cell–Cell Communication.* arXiv:2604.23917.
-> <https://arxiv.org/abs/2604.23917>
+> Causal Cell–Cell Communication.* Bioinformatics, in press. Preprint:
+> arXiv:2604.23917. <https://arxiv.org/abs/2604.23917>
 
 The method itself is distributed as the R package **MRCCC**
 (<https://github.com/bitansa/MRCCC>), which provides a validated user-facing
@@ -24,7 +24,7 @@ MR-CCC/
 ├── Github Codes/          all scripts (R, one C++ sampler, one shell sweep)
 ├── Results/               saved outputs of every analysis (.rds, .csv)
 ├── Plots/                 every figure, as PDF
-├── Data/                  NOT tracked; see "Data" below
+├── Data/                  NOT tracked (see "Data" below)
 └── README.md, LICENSE
 ```
 
@@ -86,14 +86,15 @@ From Bioconductor:
 install.packages(c("Rcpp", "RcppArmadillo", "dplyr", "tidyr", "tibble",
                    "purrr", "stringr", "forcats", "ggplot2", "scales",
                    "ggrepel", "ggtext", "Matrix", "msigdbr", "BiocManager"))
-BiocManager::install(c("GenomicRanges", "AUCell", "UCell", "GSVA"))
+BiocManager::install(c("GenomicRanges", "GenomeInfoDb", "AUCell", "UCell",
+                       "GSVA"))
 ```
 
 ## Scripts
 
 | Script | Purpose |
 |---|---|
-| `mr_ccc_gibbs.cpp` | The blocked Gibbs sampler (RcppArmadillo). Identical to `MRCCC/src/mr_ccc_gibbs.cpp` in the package. |
+| `mr_ccc_gibbs.cpp` | The blocked Gibbs sampler (RcppArmadillo) that produced every result of the paper. The R package MRCCC ships a maintained copy of it. |
 | `build_lr_database.R` | Builds the ligand–receptor database from CellPhoneDB and loads the Reactome gene sets. |
 | `build_triplet_inputs.R` | Shared definition of how one ligand–receptor–pathway triplet is assembled. Sourced by the refit scripts so that they use the same input construction as the primary analysis. It also warns when the pathway representation chosen in a refit differs from the one recorded in the primary output. |
 | `real_data_analysis.R` | **Primary analysis** for one ordered cell-type pair: all triplets, posterior summaries, convergence diagnostics, error-rate control, three figures. |
@@ -107,6 +108,7 @@ BiocManager::install(c("GenomicRanges", "AUCell", "UCell", "GSVA"))
 | `simulation_mrccc.R` | Simulation scenarios S1–S3 (correctly specified model). |
 | `simulation_misspecification.R` | Simulation scenarios S4–S7 (weak, correlated and pleiotropic instruments, nonlinear exposure effect). |
 | `figure_style.R`, `figure_functions.R` | Single source of every figure's appearance (theme, palettes, notation) and one plot-building function per figure. |
+| `summarise_results.R` | Screen-wide numbers quoted in the paper (triplets, discoveries, pair-level bFDR, largest R̂, borderline PIPs, discoveries under a neutral prior) from the twenty saved pair files, and the AUC and neutral-prior results of scenario S4. No model fitting. |
 | `regenerate_figures.R` | Rebuilds every figure from `Results/` with no model fitting, including the main-text copies (`sim_score_main.pdf`, `sim_betaXZ_main.pdf`, `Main_pip_ranking_NKCells_MonocytesCells.pdf`) sized for the two-column journal layout. |
 
 ## Running the analyses
@@ -123,7 +125,8 @@ source("Github Codes/build_lr_database.R")
 **2. Primary analysis** for the main-text pair, interactively:
 
 ```r
-.mrccc_cell1 <- "NKCells"; .mrccc_cell2 <- "MonocytesCells"
+.mrccc_cell1 <- "NKCells"
+.mrccc_cell2 <- "MonocytesCells"
 source("Github Codes/real_data_analysis.R")
 ```
 
@@ -172,10 +175,12 @@ source("Github Codes/simulation_mrccc.R")
 source("Github Codes/simulation_misspecification.R")
 ```
 
-**5. Figures only**, from saved results, with no model fitting:
+**5. Figures and screen-wide summaries**, from saved results, with no model
+fitting:
 
 ```r
 source("Github Codes/regenerate_figures.R")
+source("Github Codes/summarise_results.R")
 ```
 
 ### Canonical sampler settings
@@ -197,14 +202,19 @@ and for S4–S7 (every replicate, column `MR_pip_mcse`). The S1–S3 output does
 not store it. Both simulation studies use 100 replicates per cell and report
 the Monte Carlo standard error of every rejection rate.
 
-**Seeds.** The real-data scripts set the seed 20260921, naming the
-Mersenne-Twister generator explicitly (R's default, so a fresh session is
-unaffected). `donor.rda` contains a saved `.Random.seed`, which `load()`
-restores, so in `real_data_analysis.R` and `instrument_overlap_sensitivity.R`
-the draws made after the data are loaded follow that saved state. It is fixed,
-so runs remain reproducible. `convergence_diagnostics.R`,
-`posterior_sign_probabilities.R` and `leave_one_instrument_out.R` seed each
-chain separately. S1–S3 seed each of
+**Seeds.** Every real-data script sets a fixed seed at the top.
+`real_data_analysis.R`, `posterior_sign_probabilities.R` and
+`leave_one_instrument_out.R` name the Mersenne-Twister generator explicitly.
+`convergence_diagnostics.R`, `pathway_representation_sensitivity.R` and
+`instrument_overlap_sensitivity.R` use R's default generator, which is the
+same Mersenne-Twister in a fresh session. `donor.rda` contains a saved
+`.Random.seed`, which `load()` restores, so in `real_data_analysis.R` and
+`instrument_overlap_sensitivity.R` the draws made after the data are loaded
+follow that saved state. It is
+fixed, so runs remain reproducible. `convergence_diagnostics.R`,
+`posterior_sign_probabilities.R` and `leave_one_instrument_out.R` also seed
+each chain separately. The other scripts run their chains one after another
+from the same stream. S1–S3 seed each of
 the 1,200 replicate jobs individually (seeds 1 to 1,200, passed through
 `run_one_replicate()` to `generate_data()`), so they are reproducible
 regardless of parallelisation. S4–S7 run in parallel with `mclapply` from
@@ -274,7 +284,7 @@ so figures can be restyled or re-exported from the saved objects.
 
 | File | Written by |
 |---|---|
-| `Results/<Cell1>_<Cell2>_MR_CCC.rds` | `real_data_analysis.R` — one row per triplet with posterior means, credible intervals, sign-reversal threshold, MCSE, ESS, R̂ (β_X, β_XZ, γ, log-likelihood), instrument strength, discovery flags, chosen pathway representation, and the ligand and receptor Ensembl identifiers (`ligand_ensembl`, `receptor_ensembl`, labels only, not required by any downstream script) |
+| `Results/<Cell1>_<Cell2>_MR_CCC.rds` | `real_data_analysis.R` — one row per triplet with posterior means, credible intervals, sign-reversal threshold, MCSE, ESS, R̂ (β_X, β_XZ, γ, log-likelihood), instrument strength, discovery flags, chosen pathway representation, and, in files written by the current script, the ligand and receptor Ensembl identifiers (`ligand_ensembl`, `receptor_ensembl`, labels only, not required by any downstream script and absent from the shipped files) |
 | `Results/convergence_diagnostics_<C1>_<C2>.csv`, `Results/convergence_trace_<C1>_<C2>.rds` | `convergence_diagnostics.R` |
 | `Results/runtime_benchmark.csv` | `convergence_diagnostics.R` |
 | `Results/posterior_sign_probabilities_<C1>_<C2>.csv` | `posterior_sign_probabilities.R` |
@@ -289,7 +299,8 @@ so figures can be restyled or re-exported from the saved objects.
 
 **Session information.** Each of these scripts ends by writing
 `utils::capture.output(sessionInfo())` to `Results/sessionInfo_<script>.txt`,
-which records the R and package versions used for that run. Record the
+which records the R and package versions used for that run. These files are
+written on every rerun and are not shipped with the repository. Record the
 CellPhoneDB release (v5) and the msigdbr version (with its MSigDB release)
 alongside these files: the ligand–receptor table and the Reactome gene sets
 depend on both, and the CellPhoneDB tables are read from CSV files that no
@@ -300,7 +311,7 @@ package version identifies.
 `real_data_analysis.R` accepts two overrides for a quick end-to-end check:
 
 ```r
-.mrccc_n_iter       <- 6000   # short chains; burn-in scales down automatically
+.mrccc_n_iter       <- 6000   # short chains (burn-in scales down automatically)
 .mrccc_max_triplets <- 3      # truncate the triplet universe
 source("Github Codes/real_data_analysis.R")
 ```
@@ -342,7 +353,8 @@ Archived releases of this repository are on Zenodo:
 @article{sarkar2026mrccc,
   title   = {{MR-CCC}: Bayesian Mendelian Randomization for Causal Cell--Cell Communication},
   author  = {Sarkar, Bitan and Ni, Yang},
-  journal = {arXiv preprint arXiv:2604.23917},
+  journal = {Bioinformatics},
+  note    = {In press. Preprint arXiv:2604.23917},
   year    = {2026}
 }
 ```

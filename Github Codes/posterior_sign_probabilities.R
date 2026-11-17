@@ -47,7 +47,8 @@
 ############################################################
 
 suppressPackageStartupMessages({
-  library(dplyr); library(tibble)
+  library(dplyr)
+  library(tibble)
 })
 
 ## ---- Inherited objects ---------------------------------------------------
@@ -101,10 +102,12 @@ for (i in seq_len(nrow(TARGETS))) {
                               TARGETS$receptor_col_name[i],
                               TARGETS$pathway_name[i])
   if (is.null(inp)) {
-    warning("Could not rebuild ", lab, " -- skipped."); next
+    warning("Could not rebuild ", lab, " -- skipped.")
+    next
   }
 
-  n <- nrow(inp$X); g_scale <- min(n, 100.0)
+  n <- nrow(inp$X)
+  g_scale <- min(n, 100.0)
 
   ## Identical sampler settings to the primary analysis.
   fits <- lapply(seq_len(N_CHAINS), function(cc) {
@@ -128,8 +131,9 @@ for (i in seq_len(nrow(TARGETS))) {
                    use.names = FALSE)
 
   ## Draws in which the interaction is INCLUDED. When gamma = 0 the
-  ## coefficient is drawn from the spike (variance nu1 = 1e-4), so those
-  ## draws describe absence, not magnitude.
+  ## coefficient is drawn from the spike, whose prior variance is nu1
+  ## (1e-4) times that of the slab, so those draws describe absence, not
+  ## magnitude.
   inc <- g_dr == 1
   bXZ_cond <- bXZ[inc]
 
@@ -179,8 +183,8 @@ print(as.data.frame(
            XZ_marg_lo, XZ_marg_hi, XZ_cond_lo, XZ_cond_hi)),
   digits = 3)
 
-cat("\nRead as: P_sign is the posterior probability that beta_XZ has the sign",
-    "\nof its point estimate. XZ_marg_* mixes spike and slab; XZ_cond_* is",
+cat("\nRead as: P_sign is the posterior probability that beta_XZ has its",
+    "\nmore probable sign. XZ_marg_* mixes spike and slab. XZ_cond_* is",
     "\nconditional on the interaction being included in the model.\n")
 cat("\nWritten to", out_csv, "\n")
 

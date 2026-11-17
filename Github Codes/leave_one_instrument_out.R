@@ -60,7 +60,8 @@
 ############################################################
 
 suppressPackageStartupMessages({
-  library(dplyr); library(tibble)
+  library(dplyr)
+  library(tibble)
 })
 
 ## ---- Inherited objects ---------------------------------------------------
@@ -114,7 +115,8 @@ TARGETS <- Output_MR_CCC %>%
 ## ---- One refit under the primary settings ---------------------------------
 ## Identical sampler call to real_data_analysis.R Step 7. Returns the PIP.
 fit_pip <- function(inp, G, H) {
-  n <- nrow(inp$X); g_scale <- min(n, 100.0)
+  n <- nrow(inp$X)
+  g_scale <- min(n, 100.0)
   fits <- lapply(seq_len(N_CHAINS), function(cc) {
     set.seed(SEED_LOO + 1000L * cc)
     mr_ccc_gibbs(
@@ -146,11 +148,14 @@ for (i in seq_len(nrow(TARGETS))) {
                               TARGETS$receptor_col_name[i],
                               TARGETS$pathway_name[i])
   if (is.null(inp)) {
-    warning("Could not rebuild ", lab, " -- skipped."); next
+    warning("Could not rebuild ", lab, " -- skipped.")
+    next
   }
 
-  G <- inp$G; H <- inp$H
-  nL <- ncol(G); nR <- ncol(H)
+  G <- inp$G
+  H <- inp$H
+  nL <- ncol(G)
+  nR <- ncol(H)
 
   ## Full-set refit, so PIP_full is on the same footing as the drops.
   pip_full <- fit_pip(inp, G, H)

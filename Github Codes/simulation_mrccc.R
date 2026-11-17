@@ -296,8 +296,12 @@ fmt_mcse <- function(x, digits = 3) {
 run_methods <- function(dat, pip_thr = 0.5, alpha_sig = 0.05,
                         n_iter = 20000, burn_in = 2000) {
   
-  X <- dat$X;  Z <- dat$Z;  Y <- dat$Y
-  G <- dat$G;  H <- dat$H;  V <- dat$V
+  X <- dat$X
+  Z <- dat$Z
+  Y <- dat$Y
+  G <- dat$G
+  H <- dat$H
+  V <- dat$V
   n  <- nrow(X)
   pV <- ncol(V)
   
@@ -540,7 +544,9 @@ run_methods <- function(dat, pip_thr = 0.5, alpha_sig = 0.05,
   # it. See the note on chain length in the USER SETTINGS section.
   MR_pip_mcse <- local({
     g <- as.numeric(res_mr$gamma_draws)
-    nb <- 30L; nn <- length(g); b <- floor(nn / nb)
+    nb <- 30L
+    nn <- length(g)
+    b <- floor(nn / nb)
     if (nn < 4L || b < 2L) return(NA_real_)
     k  <- floor(nn / b)
     bm <- vapply(seq_len(k), function(i) mean(g[((i - 1) * b + 1):(i * b)]),
@@ -735,7 +741,7 @@ run_simulation_grid <- function(sample_sizes  = c(500, 1000, 10000, 30000),
   out <- bind_rows(res_list)
   cat("Elapsed:",
       round(as.numeric(difftime(Sys.time(), t0, units = "mins")), 1),
-      "minutes;", nrow(out), "of", nrow(jobs), "fits returned\n")
+      "minutes,", nrow(out), "of", nrow(jobs), "fits returned\n")
   if (n_failed > 0L) {
     cat("  ", n_failed, "replicate(s) failed and are recorded as NA rows\n")
   }
@@ -882,6 +888,6 @@ writeLines(utils::capture.output(sessionInfo()),
            "Results/sessionInfo_simulation_mrccc.txt")
 
 } else {
-  cat("S1-S3 run skipped (.run_s1_s3 = FALSE); functions and settings",
+  cat("S1-S3 run skipped (.run_s1_s3 = FALSE). Functions and settings",
       "loaded.\n")
 }

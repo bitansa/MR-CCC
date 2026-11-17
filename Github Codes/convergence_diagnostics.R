@@ -207,7 +207,8 @@ pick_triplets <- function(out, n_each = 1L) {
 ## 1992). Values near 1 indicate that between-chain and within-chain
 ## variance agree. A common working rule is R-hat < 1.01.
 gelman_rubin <- function(chains) {
-  m <- length(chains); n <- length(chains[[1]])
+  m <- length(chains)
+  n <- length(chains[[1]])
   if (m < 2 || n < 2) return(NA_real_)
   means <- vapply(chains, mean, numeric(1))
   vars  <- vapply(chains, stats::var, numeric(1))
@@ -241,7 +242,8 @@ build_inputs <- function(lig_sym, rec_sym, pth) {
 
 ## Run N_CHAINS chains from dispersed starts.
 run_chains <- function(inp) {
-  n <- nrow(inp$X); g_scale <- min(n, 100.0)
+  n <- nrow(inp$X)
+  g_scale <- min(n, 100.0)
   lapply(seq_len(N_CHAINS), function(cc) {
     set.seed(SEED_DIAG + 1000L * cc)
     mr_ccc_gibbs(
@@ -263,7 +265,9 @@ sel <- pick_triplets(Output_MR_CCC)
 cat("\nDiagnosing", nrow(sel), "triplets with", N_CHAINS, "chains each.\n")
 print(as.data.frame(sel))
 
-diag_rows <- list(); trace_rows <- list(); d <- 0
+diag_rows <- list()
+trace_rows <- list()
+d <- 0
 for (i in seq_len(nrow(sel))) {
 
   inp <- build_inputs(sel$ligand_col_name[i], sel$receptor_col_name[i],
@@ -271,10 +275,6 @@ for (i in seq_len(nrow(sel))) {
   if (is.null(inp)) next
   fits <- run_chains(inp)
   lab  <- paste0(sel$ligand_col_name[i], "–", sel$receptor_col_name[i])
-  # Facet column label for the trace plot: ligand on the first line and
-  # receptor on the second, so that long gene symbols do not widen the
-  # panels. The table label `lab` keeps the single-line form.
-  lab_facet <- paste0(sel$ligand_col_name[i], "\u2013", sel$receptor_col_name[i])
 
   for (par in DIAG_PARS) {
     ch <- lapply(fits, function(f) as.numeric(f[[paste0(par, "_draws")]]))
@@ -323,7 +323,7 @@ for (i in seq_len(nrow(sel))) {
       } else ch[[cc]]
       keep <- seq(1, length(series), by = max(1, floor(length(series) / 2000)))
       trace_rows[[length(trace_rows) + 1L]] <- tibble(
-        triplet = lab_facet, parameter = par_label, chain = factor(cc),
+        triplet = lab, parameter = par_label, chain = factor(cc),
         iter = keep, value = series[keep]
       )
     }
@@ -377,7 +377,8 @@ save_fig(p_trace, paste0(.out_prefix, "convergence_trace_", Cell1, "_", Cell2),
 bench_n <- c(250, 500, 1000, 2000)
 bench <- lapply(bench_n, function(nn) {
   set.seed(SEED_DIAG)
-  G <- matrix(rnorm(nn * 5), nn); H <- matrix(rnorm(nn * 5), nn)
+  G <- matrix(rnorm(nn * 5), nn)
+  H <- matrix(rnorm(nn * 5), nn)
   V <- matrix(rnorm(nn * 3), nn)
   X <- matrix(G %*% rep(.5, 5) + rnorm(nn), nn)
   Z <- matrix(H %*% rep(.5, 5) + rnorm(nn), nn)
@@ -394,7 +395,7 @@ write.csv(bench_tab, paste0("Results/", .out_prefix, "runtime_benchmark.csv"),
 
 cat("\n---- Runtime benchmark (single triplet) ----\n")
 print(as.data.frame(bench_tab %>% mutate(across(where(is.numeric), ~round(.x, 2)))))
-cat("\nCost is linear in n and in the number of iterations; triplets are\n",
+cat("\nCost is linear in n and in the number of iterations. Triplets are\n",
     "independent, so genome-scale screens parallelise across cores.\n", sep = "")
 
 ## Package versions used for this run.

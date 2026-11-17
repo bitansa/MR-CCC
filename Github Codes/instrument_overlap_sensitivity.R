@@ -305,7 +305,7 @@ if (length(.miss_cols) > 0) {
 }
 
 if (!"gene_id" %in% colnames(GenomicRanges::mcols(gene.ref))) {
-  stop("`gene.ref` has no `gene_id` metadata column; found: ",
+  stop("`gene.ref` has no `gene_id` metadata column. Found: ",
        paste(colnames(GenomicRanges::mcols(gene.ref)), collapse = ", "))
 }
 
@@ -438,7 +438,7 @@ if (.n_bad_geno > 0) {
                 collapse = ", "),
           ". They are treated as missing calls.")
 } else {
-  cat("  all genotype codes recognised;", sum(is.na(genotype.mat.full)),
+  cat("  all genotype codes recognised,", sum(is.na(genotype.mat.full)),
       "missing calls\n")
 }
 
@@ -620,7 +620,10 @@ clump_by_ld <- function(cand, geno, keep_max, r2_max) {
   kept <- integer(0)
   for (s in cand) {
     if (length(kept) >= keep_max) break
-    if (length(kept) == 0L) { kept <- s; next }
+    if (length(kept) == 0L) {
+      kept <- s
+      next
+    }
     r <- suppressWarnings(stats::cor(geno[s, ], t(geno[kept, , drop = FALSE])))
     if (any(is.na(r))) next
     if (max(r^2) <= r2_max) kept <- c(kept, s)
@@ -640,7 +643,7 @@ get_snp_selection <- function(gene_id, RNA_mat_adj, P,
   # because someone forgot to change a tag.
   fb <- attr(promoter_ref, "flank_bp")
   if (is.null(fb)) {
-    stop("promoter_ref lacks the flank_bp attribute; build it with ",
+    stop("promoter_ref lacks the flank_bp attribute. Build it with ",
          "promoter_ref_for(). Without it two windows would share one cache ",
          "entry and the variant comparison would silently report identical ",
          "selections.")
@@ -667,12 +670,14 @@ get_snp_selection <- function(gene_id, RNA_mat_adj, P,
 
   gene.ind <- which(gene.ref$gene_id == gene_id)
   if (length(gene.ind) == 0) {
-    assign(ck, NULL, envir = .sel_cache); return(NULL)
+    assign(ck, NULL, envir = .sel_cache)
+    return(NULL)
   }
 
   snp.ind <- which(countOverlaps(P$vcf, promoter_ref[gene.ind]) > 0)
   if (length(snp.ind) < min_snps) {
-    assign(ck, NULL, envir = .sel_cache); return(NULL)
+    assign(ck, NULL, envir = .sel_cache)
+    return(NULL)
   }
 
   # Marginal cis-eQTL p-value for each candidate SNP
@@ -689,7 +694,8 @@ get_snp_selection <- function(gene_id, RNA_mat_adj, P,
 
   ok <- which(!is.na(snp.pval))
   if (length(ok) < min_snps) {
-    assign(ck, NULL, envir = .sel_cache); return(NULL)
+    assign(ck, NULL, envir = .sel_cache)
+    return(NULL)
   }
 
   # Optional significance filter on the LEAD SNP. Applied to the gene, not
@@ -699,7 +705,8 @@ get_snp_selection <- function(gene_id, RNA_mat_adj, P,
   # strategy. The primary analysis passes lead_p_max = NA and therefore
   # skips this block entirely.
   if (is.finite(lead_p_max) && min(snp.pval[ok]) > lead_p_max) {
-    assign(ck, NULL, envir = .sel_cache); return(NULL)
+    assign(ck, NULL, envir = .sel_cache)
+    return(NULL)
   }
 
   # Up to keep_max SNPs in eQTL p-value order, LD-clumped at LD_R2_MAX.
@@ -808,7 +815,8 @@ diagnose_pair <- function(Cell1, Cell2,
     distinct(ligand_symbol, ligand_ensembl,
              receptor_symbol, receptor_ensembl, pathway_name)
 
-  rows <- vector("list", nrow(lr_p)); k <- 0
+  rows <- vector("list", nrow(lr_p))
+  k <- 0
 
   key_cols_p <- key_cols %>% filter(ensembl_gene %in% valid_genes)
 
@@ -1208,7 +1216,8 @@ loo_F_profile <- function(Cell1 = FOCAL_CELL1, Cell2 = FOCAL_CELL2) {
     distinct(ligand_symbol, ligand_ensembl,
              receptor_symbol, receptor_ensembl, pathway_name)
 
-  rows <- list(); k <- 0
+  rows <- list()
+  k <- 0
 
   for (i in seq_len(nrow(lr_l))) {
     lig <- lr_l$ligand_ensembl[i]
@@ -1269,7 +1278,7 @@ loo_F_profile <- function(Cell1 = FOCAL_CELL1, Cell2 = FOCAL_CELL2) {
 
   write.csv(out, paste0("Results/", .out_prefix, "leave_one_out_F_profile_",
                         Cell1, "_", Cell2, ".csv"), row.names = FALSE)
-  cat("   ", nrow(out), "single-instrument drops profiled;",
+  cat("   ", nrow(out), "single-instrument drops profiled,",
       "written to Results/", .out_prefix, "leave_one_out_F_profile_",
       Cell1, "_", Cell2,
       ".csv\n", sep = "")
@@ -1346,7 +1355,9 @@ if (RUN_TIER2) {
            '  BiocManager::install(c("AUCell", "UCell", "GSVA"))')
     }
   }
-  library(AUCell); library(UCell); library(GSVA)
+  library(AUCell)
+  library(UCell)
+  library(GSVA)
 
   # GSVA changed its interface at GSVA 1.50 (Bioconductor 3.18): the old
   # gsva(expr=, gset.idx.list=, method=) signature was replaced by parameter
@@ -1382,7 +1393,8 @@ if (RUN_TIER2) {
     filter(ligand_ensembl   %in% valid_genes,
            receptor_ensembl %in% valid_genes)
 
-  out_list <- vector("list", nrow(lr_f)); oi <- 0
+  out_list <- vector("list", nrow(lr_f))
+  oi <- 0
 
   for (i in seq_len(nrow(lr_f))) {
 
@@ -1431,7 +1443,9 @@ if (RUN_TIER2) {
     # Recorded so that it can be compared with the primary analysis below.
     rep_t2 <- names(which.max(abs(cors)))
 
-    sd_X <- sd(as.numeric(X)); sd_Z <- sd(as.numeric(Z)); sd_Y <- sd(as.numeric(Y))
+    sd_X <- sd(as.numeric(X))
+    sd_Z <- sd(as.numeric(Z))
+    sd_Y <- sd(as.numeric(Y))
     X_c <- matrix(as.numeric(X) - mean(X), ncol = 1)
     Z_c <- matrix(as.numeric(Z) - mean(Z), ncol = 1)
     Y_c <- matrix(as.numeric(Y) - mean(Y), ncol = 1)
@@ -1559,7 +1573,7 @@ if (RUN_TIER2) {
     if (.key_dups(primary) > 0L || .key_dups(sens) > 0L) {
       stop("The (ligand, receptor, pathway) key is not unique (",
            .key_dups(primary), " repeated key(s) in the primary results, ",
-           .key_dups(sens), " in the Tier 2 results); the comparison would ",
+           .key_dups(sens), " in the Tier 2 results). The comparison would ",
            "duplicate rows.", call. = FALSE)
     }
 

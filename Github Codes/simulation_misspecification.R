@@ -138,7 +138,9 @@ alpha_sig_mis <- 0.05
 n_iter_mis  <- 400000
 burn_in_mis <- 2000
 
-pG_mis <- 5; pH_mis <- 5; pV_mis <- 3
+pG_mis <- 5
+pH_mis <- 5
+pV_mis <- 3
 conf_mis <- 0.7               # confounder loading (matches S1-S3)
 
 ## Signal used for the "signal" arms. Matches scenario S2 of the main study
@@ -266,7 +268,9 @@ generate_data_mis <- function(n,
 
   pi_X <- rep(pi_val, pG)
   pi_Z <- rep(pi_val, pH)
-  alpha_X <- rep(0.3, pV); alpha_Z <- rep(0.3, pV); alpha_Y <- rep(0.3, pV)
+  alpha_X <- rep(0.3, pV)
+  alpha_Z <- rep(0.3, pV)
+  alpha_Y <- rep(0.3, pV)
 
   X <- as.numeric(G %*% pi_X + V %*% alpha_X + conf_strength * U + rnorm(n))
   Z <- as.numeric(H %*% pi_Z + V %*% alpha_Z + conf_strength * U + rnorm(n))
@@ -401,7 +405,8 @@ run_one_mis <- function(cell, rep_id) {
     d  <- data.frame(x = as.numeric(dat$X), dat$V, dat$G)
     m0 <- lm(x ~ ., data = data.frame(x = d$x, dat$V))
     m1 <- lm(x ~ ., data = d)
-    a  <- anova(m0, m1); a[2, "F"]
+    a  <- anova(m0, m1)
+    a[2, "F"]
   }, error = function(e) NA_real_)
 
   tibble::as_tibble(fit) %>%
@@ -440,7 +445,8 @@ run_one_mis <- function(cell, rep_id) {
 run_misspecification <- function(n_cores = .default_sim_cores()) {
 
   # Parallel-safe RNG: mclapply then gives each worker its own stream, so
-  # the parallel runs are reproducible from the seed.
+  # the parallel runs are reproducible from the seed for a given number of
+  # cores.
   RNGkind("L'Ecuyer-CMRG")
   set.seed(SEED_MIS)
   grid <- build_grid()
@@ -459,13 +465,18 @@ run_misspecification <- function(n_cores = .default_sim_cores()) {
   res <- mclapply(seq_len(nrow(jobs)), function(k) {
     cell <- grid[grid$cell_id == jobs$cell_id[k], , drop = FALSE]
     tryCatch(run_one_mis(cell, jobs$rep_id[k]),
-             error = function(e) NULL)
+             error = function(e) {
+               message("Replicate failed (cell ", jobs$cell_id[k],
+                       ", replicate ", jobs$rep_id[k], "): ",
+                       conditionMessage(e))
+               NULL
+             })
   }, mc.cores = n_cores)
 
   out <- bind_rows(res[!vapply(res, is.null, logical(1))])
   cat("Elapsed:",
       round(as.numeric(difftime(Sys.time(), t0, units = "mins")), 1),
-      "minutes;", nrow(out), "of", nrow(jobs), "fits returned\n")
+      "minutes,", nrow(out), "of", nrow(jobs), "fits returned\n")
   out
 }
 
@@ -541,7 +552,7 @@ local({
   ok <- isTRUE(all.equal(as.numeric(a$Y), as.numeric(b$Y), tolerance = 1e-10))
   cat("\nSelf-test (defaults reduce to the S1-S3 generator):",
       if (ok) "PASS\n" else
-        "FAIL -- generate_data_mis() at default settings does not reduce to generate_data(); investigate before relying on S4-S7\n")
+        "FAIL -- generate_data_mis() at default settings does not reduce to generate_data(). Investigate before relying on S4-S7.\n")
 })
 
 ############################################################
@@ -564,8 +575,8 @@ write.csv(sum_mis, "Results/simulation_S4_S7_summary.csv", row.names = FALSE)
 
 cat("\n================ S4: WEAK INSTRUMENTS ================\n")
 cat("Null arm -- rejection rate is the FALSE POSITIVE rate.\n")
-cat("This is the key table: it shows whether MR-CCC stays calibrated at the\n")
-cat("instrument strengths actually observed in the OneK1K analysis.\n\n")
+cat("This is the key table: it shows whether MR-CCC stays calibrated near the\n")
+cat("instrument strengths observed in the OneK1K analysis.\n\n")
 print(as.data.frame(
   sum_mis %>%
     filter(scenario == "S4", arm == "null") %>%
@@ -583,7 +594,7 @@ print(as.data.frame(
 
 cat("\n------------- S4: main-effect arm (no true interaction) -------------\n")
 cat("beta_X = 0.3, beta_XZ = 0. Rejection rate is power for the causal\n")
-cat("block; bias_beta_XZ is measured against 0, so a systematic departure\n")
+cat("block. bias_beta_XZ is measured against 0, so a systematic departure\n")
 cat("from 0 is a SPURIOUS interaction manufactured by the misspecification.\n\n")
 print(as.data.frame(
   sum_mis %>%
@@ -593,7 +604,7 @@ print(as.data.frame(
 ))
 
 cat("\n-------- Spurious interaction across ALL scenarios (main arm) --------\n")
-cat("OLS and MR-CCC only; MVMR and MR-BMA do not model the interaction.\n\n")
+cat("OLS and MR-CCC only. MVMR and MR-BMA do not model the interaction.\n\n")
 print(as.data.frame(
   sum_mis %>%
     filter(arm == "main", method %in% c("OLS", "MR-CCC")) %>%

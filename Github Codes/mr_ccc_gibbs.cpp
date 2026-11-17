@@ -49,8 +49,8 @@
 //  gamma therefore acts through the PRIOR VARIANCE of the causal block and
 //  does not multiply the mean function: under the spike the two coefficients
 //  are drawn from a distribution concentrated tightly at zero rather than set
-//  to zero exactly. This is the continuous spike-and-slab formulation. With
-//  nu1 = 1e-4 it is numerically indistinguishable from a point-mass spike,
+//  to zero exactly. This is the continuous spike-and-slab formulation, in
+//  which nu1 (1e-4 by default) makes the spike much narrower than the slab,
 //  and P(gamma = 1 | data) is the posterior inclusion probability.
 //
 // -----------------------------------------------------------------------------
@@ -168,7 +168,7 @@ inline double logsumexp2(double a, double b) {
 inline arma::mat safe_inv_sympd(const arma::mat& A, const char* what) {
   arma::mat out;
   if (!arma::inv_sympd(out, A)) {
-    Rcpp::stop("Numerical failure inverting the %s matrix; check for "
+    Rcpp::stop("Numerical failure inverting the %s matrix. Check for "
                "collinear instruments or covariates, or increase 'ridge'.",
                what);
   }
@@ -376,7 +376,7 @@ List mr_ccc_gibbs(
   double sigma_Y_sq = arma::as_scalar(arma::var(Y.col(0))) * (n - 1.0) / n;
 
   // Spike-and-slab inclusion indicator and prior inclusion probability
-  int    gamma = 1;    // gamma = 1: slab (active signal); gamma = 0: spike (null)
+  int    gamma = 1;    // gamma = 1: slab (active signal), gamma = 0: spike (null)
   double rho   = 0.5;  // prior inclusion probability, updated each iteration
 
   // ---- Apply optional dispersed initialisation ------------------------------

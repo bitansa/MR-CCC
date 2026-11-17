@@ -95,7 +95,8 @@ if (length(rds_files) == 0L) {
       message("Skipping ", f, ": file name does not encode <Cell1>_<Cell2>.")
       next
     }
-    Cell1 <- cells[1]; Cell2 <- cells[2]
+    Cell1 <- cells[1]
+    Cell2 <- cells[2]
     cat("--", Cell1, "->", Cell2, "\n")
 
     # A pair whose saved object cannot be plotted (for example one written

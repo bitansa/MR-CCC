@@ -68,7 +68,7 @@ build_triplet_inputs <- function(lig_sym, rec_sym, pth, verbose = TRUE) {
          length(runs), " rows of lr_filtered (Ensembl IDs: ",
          paste(lr_filtered$ligand_ensembl[runs], lr_filtered$receptor_ensembl[runs],
                sep = "/", collapse = ", "),
-         "); it cannot be identified by gene symbol alone.", call. = FALSE)
+         "). It cannot be identified by gene symbol alone.", call. = FALSE)
   }
   run <- runs[1]
   if (is.na(run)) return(NULL)
@@ -133,7 +133,9 @@ build_triplet_inputs <- function(lig_sym, rec_sym, pth, verbose = TRUE) {
   Y <- matrix(Y_list[[best_name]], ncol = 1)
 
   # ---- Steps 4-6: scales, instruments, covariates ---------------------------
-  sd_X <- sd(as.numeric(X)); sd_Z <- sd(as.numeric(Z)); sd_Y <- sd(as.numeric(Y))
+  sd_X <- sd(as.numeric(X))
+  sd_Z <- sd(as.numeric(Z))
+  sd_Y <- sd(as.numeric(Y))
   if (!is.finite(sd_Y) || sd_Y == 0) return(NULL)
 
   # Raw dosages from get_SNP_matrix(). The model receives centred columns,

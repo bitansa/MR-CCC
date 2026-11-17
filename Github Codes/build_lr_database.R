@@ -180,7 +180,8 @@ split_gene_pair <- function(s, known) {
     c(str_sub(s, 1L, i - 1L), str_sub(s, i + 1L, -1L))
   })
   ok <- vapply(cands, function(p) {
-    tl <- parse_gene_vec(p[1]); tr <- parse_gene_vec(p[2])
+    tl <- parse_gene_vec(p[1])
+    tr <- parse_gene_vec(p[2])
     length(tl) > 0L && length(tr) > 0L && all(c(tl, tr) %in% known)
   }, logical(1))
 
