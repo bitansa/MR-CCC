@@ -80,7 +80,7 @@ missing, install it as the message directs (at the time of writing,
 `install.packages("msigdbdf", repos = "https://igordot.r-universe.dev")`).
 
 From Bioconductor:
-`GenomicRanges`, `AUCell`, `UCell`, `GSVA`.
+`GenomicRanges`, `GenomeInfoDb`, `AUCell`, `UCell`, `GSVA`.
 
 ```r
 install.packages(c("Rcpp", "RcppArmadillo", "dplyr", "tidyr", "tibble",
@@ -235,9 +235,10 @@ counts are used for ligand and receptor expression, the eQTL screen and all six
 pathway scores. Genotypes are coded as
 dosages 0/1/2. SNPs carried by at most 5% of donors with a called genotype are
 removed, and remaining missing calls are imputed by the SNP's mean dosage. The
-donor covariates are sex, age in ten-year bins and three genotype principal
-components. The same covariate matrix is used in the eQTL screen, the
-first-stage F statistic and the model. Because neither first stage of the model
+donor covariates are sex, age in seven bins (under 30, five ten-year bins,
+80 and over) and three genotype principal components. The same covariate
+matrix is used in the eQTL screen, the first-stage F statistic and the
+model. Because neither first stage of the model
 has an intercept, X, Z, Y and every column of the instrument and covariate
 matrices are centred before fitting.
 
